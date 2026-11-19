@@ -12,7 +12,7 @@ static var terrazzo: ImageTexture
 static var city_view: ImageTexture
 static var stage_shadow: ImageTexture
 
-static func build(stage: Node3D) -> void:
+static func build(stage: Node3D) -> StandardMaterial3D:
 	var decor := Node3D.new()
 	decor.name = "MidnightMartDressing"
 	stage.add_child(decor)
@@ -20,10 +20,11 @@ static func build(stage: Node3D) -> void:
 	make_walls(decor)
 	make_windows(decor)
 	make_awning(decor)
-	make_marquee(decor)
+	var marquee_light := make_marquee(decor)
 	make_sign(decor,"PLAY ARCADE",Vector3(-7.75,3.30,-6.73),3.9,Color("ffd5a0"))
 	make_sign(decor,"SWEET GOODS",Vector3(7.05,3.30,-6.73),4.30,Color("b6f5d8"))
 	make_floor_trim(decor)
+	return marquee_light
 
 static func plank(parent: Node3D, name: String, p: Vector3, size: Vector3, color: Color, bevel := 0.04, emission := 0.0) -> MeshInstance3D:
 	return Art.box(parent,name,p,size,Art.material(color,emission),bevel)
@@ -179,14 +180,16 @@ static func make_awning(parent: Node3D) -> void:
 			shade.rotation.x = 0.16
 			plank(parent,"AwningValance",Vector3(x,2.85,-6.47),Vector3(width/12.0+0.013,0.16,0.10),tint,0.037)
 
-static func make_marquee(parent: Node3D) -> void:
+static func make_marquee(parent: Node3D) -> StandardMaterial3D:
 	var pos := Vector3(-0.16,3.46,-7.04)
 	plank(parent,"MarqueeFrame",pos,Vector3(7.15,1.15,0.30),GOLD,0.21)
 	plank(parent,"MarqueeFace",pos+Vector3(0,0,0.16),Vector3(6.86,0.90,0.12),INK,0.16)
 	mounted_text(parent,"MIDNIGHT MART",pos+Vector3(0,0.075,0.245),Color("ffe2ae"),0.0086,80)
 	mounted_text(parent,"OPEN LATE",pos+Vector3(0,-0.265,0.247),Color("a5e4cf"),0.0038,40)
+	var bulb: StandardMaterial3D = Art.material(GOLD,0.48).duplicate()
 	for x in [-3.1,-2.86,2.86,3.1]:
-		Art.sphere(parent,"MarqueeBulb",pos+Vector3(x,0,0.23),Vector3.ONE*0.115,Art.material(GOLD,0.48))
+		Art.sphere(parent,"MarqueeBulb",pos+Vector3(x,0,0.23),Vector3.ONE*0.15,bulb)
+	return bulb
 
 static func make_sign(parent: Node3D, title: String, pos: Vector3, width: float, color: Color) -> void:
 	plank(parent,"DepartmentSign",pos,Vector3(width,0.41,0.14),INK,0.093)

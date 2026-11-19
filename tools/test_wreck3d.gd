@@ -56,22 +56,32 @@ func run() -> void:
 	await process_frame
 	check(wreck.view is SubViewport and wreck.view.own_world_3d and wreck.stage is Node3D and wreck.camera is Camera3D and wreck.camera.current,"real private3D viewport contains stage and active camera")
 	check(wreck.stage.find_children("*","MeshInstance3D",true,false).size() > 100 and wreck.stage.find_children("*","StaticBody3D",true,false).size() > 20,"shop consists of real meshes and solid3D collision bodies")
-	check(wreck.avatar is Node3D and wreck.hammer is Node3D and wreck.indicator is MeshInstance3D,"avatar, hammer and target indicator are actual3D nodes")
+	check(wreck.avatar is Node3D and wreck.hammer is Node3D and wreck.indicator is Node3D and wreck.beat_arrows.size() == 4,"avatar, hammer and floor cues are actual3D nodes")
 	var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://assets/audio/wreck3d/metadata.json"))
 	check(wreck.music.stream.resource_path == "res://assets/audio/wreck3d/bed.wav" and absf(wreck.music.stream.get_length()-52.0) < 0.001,"start preserves new52-second backing rather than old34-second track")
 	check(wreck.cues.size() == 102 and meta.cue_count == 102 and meta.combat_end == 50,"48-second mode has102 cues and ends at50s")
 	check(wreck.beat_guide is AudioStreamPlayer and wreck.beat_guide.playing and absf(wreck.beat_guide.stream.get_length()-52.0) < 0.001,"new52-second beat-guide voice starts with the round")
-	var near: Dictionary = wreck.beat_ring(1.95)
-	var exact: Dictionary = wreck.beat_ring(2.0)
-	var reopen: Dictionary = wreck.beat_ring(2.15)
-	var approaching: Dictionary = wreck.beat_ring(2.40)
-	check(not near.flash and float(near.radius) > wreck.TARGET_RING and float(near.radius) < wreck.TARGET_RING+6,"ring1.95s approaches fixed inner ring before downbeat")
-	check(exact.flash and is_equal_approx(float(exact.radius),wreck.TARGET_RING),"ring2.00s exactly coincides and flashes on downbeat")
-	check(not reopen.flash and not approaching.flash and float(reopen.radius) > float(approaching.radius) and float(approaching.radius) > float(near.radius),"ring2.15s reopens then shrinks consistently through2.40s toward next beat")
+	var near: Dictionary = wreck.beat_lighting(1.95)
+	var exact: Dictionary = wreck.beat_lighting(2.0)
+	var reopen: Dictionary = wreck.beat_lighting(2.15)
+	var approaching: Dictionary = wreck.beat_lighting(2.40)
+	check(near.light == 0 and near.distance > 0 and near.distance < 0.15,"floor cues arrive just before the downbeat")
+	check(exact.light == 1.0 and exact.distance == 0.0,"floor cues land and flash on the downbeat")
+	check(reopen.distance > approaching.distance and approaching.distance > near.distance,"floor cues restart and keep moving toward the next beat")
+	var upbeat: float = wreck.upbeats[0]
+	var upbeat_before: Dictionary = wreck.beat_lighting(upbeat-0.025)
+	var upbeat_hit: Dictionary = wreck.beat_lighting(upbeat)
+	check(upbeat_before.light == 0 and upbeat_before.distance > 0 and upbeat_hit.light == 1 and upbeat_hit.distance == 0,"optional half-beat has a distinct approach and flash")
 	game.offset_ms = 100
-	var shifted: Dictionary = wreck.beat_ring(2.10)
-	check(shifted.flash and is_equal_approx(float(shifted.radius),wreck.TARGET_RING),"positive100ms calibration shifts visual coincidence to2.10s")
+	var shifted: Dictionary = wreck.beat_lighting(2.10)
+	check(is_equal_approx(float(shifted.light),1.0) and shifted.distance == 0.0,"calibration shifts when the floor cues arrive")
 	game.offset_ms = 0
+	frame(1.84)
+	var moving_arrow: Vector3 = wreck.beat_arrows[2].position
+	frame(2.0)
+	var landed_arrow: Vector3 = wreck.beat_arrows[2].position
+	var landing: Vector3 = wreck.indicator.get_child(2).global_position
+	check(Vector2(landed_arrow.x,landed_arrow.z).distance_to(Vector2(landing.x,landing.z)) < 0.001 and moving_arrow.distance_to(landed_arrow) > 0.1 and wreck.target_light.light_energy > 0.9,"world-space arrows arrive on the prop's floor marks as its light peaks")
 	for i in range(wreck.cues.size()):
 		var cue: Dictionary = wreck.cues[i]
 		var m: Dictionary = meta.cues[i]

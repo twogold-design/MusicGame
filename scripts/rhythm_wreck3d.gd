@@ -1,9 +1,8 @@
 extends "res://scripts/rhythm_demolition.gd"
 
 const PLAY_END := 50.0
-const VIEW_RECT := Rect2(48,159,1344,590)
-const RHYTHM_PANEL := Rect2(48,765,1344,115)
-const TARGET_RING := 29.0
+const VIEW_RECT := Rect2(48,159,1344,686)
+const FLOOR_MARKERS := [Vector2(-1,-1),Vector2(1,-1),Vector2(-1,1),Vector2(1,1)]
 const PANEL_DARK := Color("302541")
 const PEACH := Color("ffd3aa")
 const MINT := Color("94fae0")
@@ -14,7 +13,13 @@ var stage: Node3D
 var camera: Camera3D
 var avatar: Node3D
 var hammer: Node3D
-var indicator: MeshInstance3D
+var indicator: Node3D
+var beat_arrows: Array[Node3D] = []
+var arrow_light: StandardMaterial3D
+var target_light: OmniLight3D
+var hammer_light: StandardMaterial3D
+var marquee_light: StandardMaterial3D
+var upbeats := PackedFloat32Array()
 var physical: Array = []
 var loot: Array = []
 var waves3d: Array = []
@@ -25,6 +30,7 @@ var looted := 0
 var crates_revealed := 0
 var base_camera := CAMERA_ORBIT
 var hit3d := Vector3.ZERO
+var impact_target := -1
 var impact_time := 0.0
 var impact_strength := 0.0
 var selected_visual := -1
@@ -35,12 +41,17 @@ var beat_guide: AudioStreamPlayer
 var guide_label := ""
 var guide_color := GOLD
 var guide_label_time := 0.0
+var guide_anchor := Vector3.ZERO
 var combat_backdrop := Color("29223d")
 var meshes := preload("res://scripts/wreck3d_art.gd")
 
 func _init(host) -> void:
 	super(host)
 	track = JSON.parse_string(FileAccess.get_file_as_string("res://assets/audio/wreck3d/metadata.json"))
+	for cue in track.cues:
+		var position_in_bar := float(cue.beat)
+		if not is_equal_approx(position_in_bar,roundf(position_in_bar)):
+			upbeats.append(float(cue.time))
 	music.stream = load("res://assets/audio/wreck3d/bed.wav")
 	music.volume_db = -4
 	for i in range(2): response_players[i].stream = load("res://assets/audio/wreck3d/response_%s.wav" % ("even" if i==0 else "odd"))
@@ -84,10 +95,10 @@ func start() -> void:
 	guide_label = ""
 	guide_label_time = 0
 	impact_time = 0
+	impact_target = -1
 	build_shop()
 	shop_identity = stage.get_instance_id()
 	target_id = pick_target()
-	say("两圈重合时，按一下空格",GOLD,4)
 
 func stop() -> void:
 	super.stop()
@@ -167,7 +178,7 @@ func build_shop() -> void:
 	stage.add_child(camera)
 	frame_shop()
 	camera.current = true
-	ShopDecor.build(stage)
+	marquee_light = ShopDecor.build(stage)
 	collider(stage,Vector3(0,-0.3,0),Vector3(25,0.6,15))
 	collider(stage,Vector3(0,1.5,-7.3),Vector3(25,3,0.35))
 	collider(stage,Vector3(-12.3,1.5,0),Vector3(0.35,3,15))
@@ -199,17 +210,64 @@ func build_shop() -> void:
 	stage.add_child(avatar)
 	avatar.position = Vector3(-8,0,5)
 	hammer = avatar.get_node_or_null("Hammer")
-	indicator = MeshInstance3D.new()
-	var torus := TorusMesh.new()
-	torus.inner_radius = 0.65
-	torus.outer_radius = 0.73
-	indicator.mesh = torus
-	indicator.material_override = mat(GOLD,true)
-	stage.add_child(indicator)
+	var stripe: MeshInstance3D = hammer.get_node("HammerStripe")
+	hammer_light = stripe.material_override.duplicate()
+	hammer_light.emission_enabled = true
+	stripe.material_override = hammer_light
+	build_floor_markers()
 	palm = box(stage,Vector3.ZERO,Vector3(0.48,0.1,0.64),Color("f4d7aa"))
 	palm.visible = false
 	for i in range(4): box(palm,Vector3(-0.18+i*0.12,0,0.36),Vector3(0.085,0.09,0.25),Color("f4d7aa"))
 	target_id = pick_target()
+
+func build_floor_markers() -> void:
+	indicator = Node3D.new()
+	indicator.name = "BeatLandingMarks"
+	stage.add_child(indicator)
+	indicator.visible = false
+	beat_arrows.clear()
+	arrow_light = StandardMaterial3D.new()
+	arrow_light.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var border := StandardMaterial3D.new()
+	border.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	border.albedo_color = Color("233244")
+	var arrow_mesh := PlaneMesh.new()
+	arrow_mesh.size = Vector2(0.56,0.21)
+	var stripe_mesh := PlaneMesh.new()
+	stripe_mesh.size = Vector2(0.52,0.14)
+	var outline_mesh := PlaneMesh.new()
+	outline_mesh.size = Vector2(0.58,0.20)
+	for direction: Vector2 in FLOOR_MARKERS:
+		var landing := MeshInstance3D.new()
+		landing.mesh = arrow_mesh
+		landing.material_override = border
+		landing.rotation.y = -direction.angle()
+		landing.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		indicator.add_child(landing)
+		var runner := Node3D.new()
+		runner.rotation.y = landing.rotation.y
+		runner.visible = false
+		stage.add_child(runner)
+		beat_arrows.append(runner)
+		for side in [-1,1]:
+			var outline := MeshInstance3D.new()
+			outline.mesh = outline_mesh
+			outline.material_override = border
+			outline.position = Vector3(0.11,0,side*0.115)
+			outline.rotation.y = -side*0.61
+			outline.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			runner.add_child(outline)
+			var stripe := MeshInstance3D.new()
+			stripe.mesh = stripe_mesh
+			stripe.material_override = arrow_light
+			stripe.position.y = 0.004
+			stripe.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			outline.add_child(stripe)
+	target_light = OmniLight3D.new()
+	target_light.visible = false
+	target_light.shadow_enabled = false
+	target_light.omni_attenuation = 1.75
+	stage.add_child(target_light)
 
 func frame_shop() -> void:
 	camera.look_at(Vector3.ZERO)
@@ -280,11 +338,11 @@ func strike(kind: String,id: int) -> void:
 	var offbeat := judged-roundf(judged/BEAT)*BEAT
 	var label := "等下一拍"
 	if cue_index<0: label = "早了一点" if offbeat<0 else "晚了一点"
-	show_judgement(label,PEACH,0.5)
+	show_judgement(label,PEACH,0.5,impact_target)
 
 func accept(index: int) -> void:
 	if now()<float(cues[index].time):
-		show_judgement("准备好了",MINT,0.20)
+		show_judgement("准备好了",MINT,0.20,int(cues[index].target))
 	super.accept(index)
 
 func execute_cue(index: int) -> void:
@@ -293,9 +351,9 @@ func execute_cue(index: int) -> void:
 	var heavy: bool = cues[index].kind=="heavy"
 	super.execute_cue(index)
 	if offset>0.09:
-		show_judgement("稍晚 · 接上了",PEACH,0.42)
+		show_judgement("稍晚 · 接上了",PEACH,0.42,impact_target)
 	else:
-		show_judgement("准拍 · 重砸！" if heavy else "准拍！",MINT,0.42)
+		show_judgement("准拍 · 重砸！" if heavy else "准拍！",MINT,0.42,impact_target)
 
 func miss_cue(index: int,_early_release := false) -> void:
 	var beat_number := float(cues[index].beat)
@@ -304,22 +362,68 @@ func miss_cue(index: int,_early_release := false) -> void:
 		return
 	super.miss_cue(index)
 
-func show_judgement(label: String,color: Color,seconds: float) -> void:
+func show_judgement(label: String,color: Color,seconds: float,id: int) -> void:
 	guide_label = label
 	guide_color = color
 	guide_label_time = seconds
+	guide_anchor = avatar.position+Vector3.UP*2.0
+	if id>=0 and id<objects.size():
+		var item: Dictionary = objects[id]
+		guide_anchor = item.pos+Vector3.UP*(item.size.y+0.6)
 
 func project_to_screen(pos: Vector3) -> Vector2:
 	return VIEW_RECT.position+camera.unproject_position(pos)/Vector2(view.size)*VIEW_RECT.size
 
-func beat_ring(clock: float) -> Dictionary:
+func beat_lighting(clock: float) -> Dictionary:
 	var judged: float = clock-h.offset_ms/1000.0
-	var since := fposmod(judged,BEAT)
-	var flash := since<0.09
-	var radius := TARGET_RING
-	if not flash:
-		radius += 47.0*(BEAT-since)/(BEAT-0.09)
-	return {"radius":radius,"flash":flash}
+	var previous := floorf(judged/BEAT)*BEAT
+	var next := previous+BEAT
+	for upbeat in upbeats:
+		if upbeat<=previous or upbeat>=next: continue
+		if judged<upbeat: next = upbeat
+		else: previous = upbeat
+		break
+	var since := judged-previous
+	var light_level := 1.0-clampf(since/0.11,0,1)
+	var distance_left := 1.0-clampf((since-0.09)/(next-previous-0.09),0,1)
+	if since<0.09: distance_left = 0
+	return {"distance":distance_left,"light":light_level}
+
+func update_floor_markers(selected: int,clock: float) -> void:
+	var active: bool = h.screen=="combat_play"
+	indicator.visible = active
+	target_light.visible = active
+	for arrow in beat_arrows: arrow.visible = active
+	if not active: return
+	var timing := beat_lighting(clock)
+	var center := avatar.position+Vector3(0,0,-0.65)
+	var half_size := Vector2(0.58,0.58)
+	var surface_height := 0.0
+	if selected>=0:
+		var item: Dictionary = objects[selected]
+		center = item.pos
+		half_size = Vector2(item.size.x,item.size.z)*0.5+Vector2.ONE*0.32
+		surface_height = item.size.y
+	center.y = 0.083
+	arrow_light.albedo_color = Color("45bdaf").lerp(Color("ecffcb"),timing.light)
+	for index in range(FLOOR_MARKERS.size()):
+		var axis: Vector2 = FLOOR_MARKERS[index]
+		var corner := center+Vector3(axis.x*half_size.x,0,axis.y*half_size.y)
+		var trail := corner+Vector3(axis.x,0,axis.y)*float(timing.distance)*0.90
+		var landing: MeshInstance3D = indicator.get_child(index)
+		landing.position = corner.clamp(Vector3(-12.04,0.083,-6.96),Vector3(12.26,0.083,7.31))
+		beat_arrows[index].position = trail.clamp(Vector3(-12.04,0.088,-6.96),Vector3(12.26,0.088,7.31))
+	target_light.position = center+Vector3(0,surface_height*0.55+0.8,half_size.y+0.36)
+	target_light.light_color = MINT
+	target_light.omni_range = 2.5+surface_height*0.45
+	var brightness: float = timing.light
+	target_light.light_energy = 0.10+0.82*brightness
+	marquee_light.emission_energy_multiplier = 0.28+0.94*brightness
+	hammer_light.emission = MINT
+	hammer_light.emission_energy_multiplier = 0.65*brightness
+	var windup: float = (1.0-float(timing.distance))*0.31*(1.0-brightness)
+	var charged_windup := 0.52*clampf((clock-charge_start)/0.28,0,1) if charging else 0.0
+	hammer.rotation.x = punch*1.4-windup-charged_windup
 
 func meshes_below(node: Node) -> Array:
 	var found: Array = []
@@ -369,6 +473,7 @@ func apply_smash(id: int,kind: String,on_beat: bool) -> void:
 	total_smashes += 1
 	if kind=="heavy": heavy_hits += 1
 	id = valid_target(id)
+	impact_target = id
 	var heavy := kind=="heavy"
 	impact_time = 0.27
 	impact_strength = 1.35 if heavy else (1.0 if on_beat else 0.56)
@@ -400,8 +505,9 @@ func apply_smash(id: int,kind: String,on_beat: bool) -> void:
 		say("整 片 震 碎！" if heavy else ("砸 中 重 拍！" if on_beat else "尽管砸，跟底鼓更带劲"),GOLD if on_beat else h.MUTED,0.4)
 	var damage := (6.2 if heavy else 2.6) if on_beat else (2.8 if heavy else 0.65)
 	damage_object(id,damage,heavy or on_beat)
-	if heavy or (on_beat and streak%4==0):
+	if on_beat or heavy:
 		make_wave(hit3d,heavy)
+	if heavy or (on_beat and streak%4==0):
 		var neighbors: Array = []
 		for item2 in objects:
 			if item2.alive and item2.id!=id and item2.kind!="dummy" and item2.pos.distance_to(item.pos)<(3.7 if heavy else 2.8): neighbors.append(item2.id)
@@ -464,8 +570,13 @@ func make_wave(pos: Vector3,heavy: bool) -> void:
 	shape.inner_radius = 0.92
 	shape.outer_radius = 1.0
 	ring.mesh = shape
-	ring.material_override = mat(GOLD,true)
-	ring.position = Vector3(pos.x,0.06,pos.z)
+	var surface := StandardMaterial3D.new()
+	surface.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	surface.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	surface.albedo_color = GOLD if heavy else MINT
+	ring.material_override = surface
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	ring.position = Vector3(pos.x,0.10,pos.z)
 	stage.add_child(ring)
 	waves3d.append({"node":ring,"age":0.0,"heavy":heavy})
 
@@ -483,6 +594,13 @@ func update(delta: float) -> void:
 	feedback_timer = maxf(0,feedback_timer-delta)
 	guide_label_time = maxf(0,guide_label_time-delta)
 	impact_time = maxf(0,impact_time-delta)
+	if h.screen=="combat_play":
+		elapsed = now()
+		var current_beat := int(floor((elapsed-INTRO)/BEAT))
+		if current_beat!=beat:
+			beat = current_beat
+			pulse = 1
+		resolve_cues()
 	for item in objects:
 		item.flash = maxf(0,item.flash-delta*5)
 		if item.kind=="dummy":
@@ -513,36 +631,26 @@ func update(delta: float) -> void:
 	loot = loot.filter(func(coin): return is_instance_valid(coin.node) and not coin.node.is_queued_for_deletion())
 	for ring in waves3d:
 		ring.age += delta
-		ring.node.scale = Vector3.ONE*(0.5+ring.age*(10 if ring.heavy else 7))
+		ring.node.scale = Vector3(1,0.18,1)*(0.42+ring.age*(10 if ring.heavy else 5))
+		ring.node.material_override.albedo_color.a = clampf(1.0-ring.age/0.35,0,1)
 		if ring.age>0.35: ring.node.queue_free()
 	waves3d = waves3d.filter(func(ring): return is_instance_valid(ring.node) and not ring.node.is_queued_for_deletion())
 	var selected := valid_target(locked_target if charging else target_id)
-	indicator.visible = selected>=0
+	if impact_time>0.15: selected = impact_target
 	if selected>=0:
 		var item: Dictionary = objects[selected]
-		indicator.position = item.pos+Vector3(0,0.06,0)
-		var radius: float = maxf(item.size.x,item.size.z)*0.75+0.25
-		indicator.scale = Vector3.ONE*radius
 		var destination: Vector3 = item.pos+Vector3(0,0,item.size.z*0.5+1.05)
 		avatar.position = avatar.position.lerp(destination,1-exp(-delta*16))
 		var look: Vector3 = item.pos-avatar.position
 		if look.length_squared()>0.01: avatar.rotation.y = atan2(look.x,look.z)
-		if hammer:
-			hammer.visible = item.kind!="dummy"
-			hammer.rotation.x = punch*1.4-(0.55*minf(1,(now()-charge_start)) if charging else 0)
+	hammer.visible = selected<0 or objects[selected].kind!="dummy"
+	update_floor_markers(selected,elapsed)
 	palm.visible = slap_flash>0
 	if palm.visible:
 		palm.position = hit3d+Vector3((1-slap_flash)*0.6,0,0.2)
 		palm.rotation.y = slap_flash*2
 	camera.position = base_camera+Vector3(sin(h.anim*83),cos(h.anim*91),0)*shake*0.018
-	if h.screen!="combat_play": return
-	elapsed = now()
-	var current_beat := int(floor((elapsed-INTRO)/BEAT))
-	if current_beat!=beat:
-		beat = current_beat
-		pulse = 1
-	resolve_cues()
-	if elapsed>=PLAY_END: finish(true)
+	if h.screen=="combat_play" and elapsed>=PLAY_END: finish(true)
 
 func pointer_down(point: Vector2,source: String) -> void:
 	for button in h.buttons:
@@ -619,13 +727,7 @@ func state() -> Dictionary:
 		var point := camera.unproject_position(item.pos+Vector3.UP*item.size.y*0.5)
 		var screen: Vector2 = VIEW_RECT.position+point/Vector2(view.size)*VIEW_RECT.size
 		props.append({"id":item.id,"kind":item.kind,"alive":item.alive,"hp":item.hp,"x":screen.x,"y":screen.y,"title":item.title})
-	return {"mode":"wreck3d","elapsed":elapsed,"duration":PLAY_END,"beat":beat,"score":score,"cash":cash,"looted":looted,"slaps":slaps,"resolved":resolved,"missed":missed,"streak":streak,"maxStreak":max_streak,"heavyHits":heavy_hits,"weakHits":weak_hits,"broken":broken,"walls":wall_breaks,"chainHits":chain_hits,"destruction":destruction(),"charging":charging,"target":target_id,"won":won,"debris":physical.size(),"revealed":crates_revealed,"shopIdentity":shop_identity,"cues":chart,"objects":props,"worldMeshes":stage.find_children("*","MeshInstance3D",true,false).size(),"beatGuide":beat_ring(elapsed),"judgement":guide_label if guide_label_time>0 else ""}
-
-func section_name() -> String:
-	var names := {"verse_intro":"主歌 · 开砸","funk_groove":"切分贝斯","break":"Break · 留住底鼓","drop":"Drop · 全力拆","melodic_lift":"旋律抬升","final_fill":"终段鼓花","outro":"余音收束"}
-	for section in track.sections:
-		if elapsed>=float(section.from) and elapsed<float(section.to): return names.get(str(section.id),str(section.id))
-	return "准备开拆"
+	return {"mode":"wreck3d","elapsed":elapsed,"duration":PLAY_END,"beat":beat,"score":score,"cash":cash,"looted":looted,"slaps":slaps,"resolved":resolved,"missed":missed,"streak":streak,"maxStreak":max_streak,"heavyHits":heavy_hits,"weakHits":weak_hits,"broken":broken,"walls":wall_breaks,"chainHits":chain_hits,"destruction":destruction(),"charging":charging,"target":target_id,"won":won,"debris":physical.size(),"revealed":crates_revealed,"shopIdentity":shop_identity,"cues":chart,"objects":props,"worldMeshes":stage.find_children("*","MeshInstance3D",true,false).size(),"beatGuide":beat_lighting(elapsed),"judgement":guide_label if guide_label_time>0 else ""}
 
 func draw_view() -> void:
 	h.draw_texture_rect(view.get_texture(),VIEW_RECT,false)
@@ -650,38 +752,10 @@ func draw_impact() -> void:
 			pos-across*3.0
 		]),tint if i%2==0 else Color(MINT,life))
 
-func draw_beat_ring(center: Vector2,clock: float) -> void:
-	var timing := beat_ring(clock)
-	var ring_scale := 0.62
-	var radius: float = timing.radius*ring_scale
-	var inner := TARGET_RING*ring_scale
-	var feedback_tint := MINT if timing.flash else PEACH
-	h.draw_circle(center,inner,Color(MINT,0.12 if timing.flash else 0.045),true,-1,true)
-	h.draw_arc(center,inner,0,TAU,56,Color("100f20"),7,true)
-	h.draw_arc(center,inner,0,TAU,56,MINT if timing.flash else Color("fff2e0"),3.2,true)
-	if timing.flash:
-		h.draw_arc(center,inner+6,0,TAU,56,Color(MINT,0.62),3,true)
-	else:
-		h.draw_arc(center,radius,0,TAU,72,Color("160f27"),7,true)
-		h.draw_arc(center,radius,0,TAU,72,feedback_tint,3.6,true)
-	if elapsed<INTRO:
-		var count := clampi(int(floor(elapsed/BEAT))+1,1,4)
-		h.center(str(count),center+Vector2(0,8),22,Color("fff2e0"))
-	else:
-		h.draw_circle(center,4.5,feedback_tint,true,-1,true)
-		var beat_position: float = (clock-INTRO-h.offset_ms/1000.0)/BEAT
-		var current_beat := int(floor(beat_position))
-		if (current_beat+1)%16==0:
-			# A small ornament marks the optional upbeat without changing the main countdown.
-			var upbeat := absf(fposmod(beat_position,1.0)-0.5)<0.12
-			h.draw_circle(center+Vector2(11,0),4 if upbeat else 2.5,PEACH,true,-1,true)
-	if charging and now()-charge_start>=0.28:
-		h.draw_arc(center,inner-6,-PI/2,PI*1.5,48,Color(GOLD,0.75),2.5,true)
-
 func draw_intro() -> void:
 	h.draw_rect(Rect2(0,0,1440,900),Color("1c162e"))
 	h.center("节拍拆迁王",Vector2(720,135),72,PEACH)
-	var preview := Rect2(126,183,1188,521)
+	var preview := Rect2(209,183,1022,521)
 	h.draw_texture_rect(view.get_texture(),preview,false)
 	h.rounded(preview,Color.TRANSPARENT,21,Color("63506e"))
 	h.button("combat_start",Rect2(540,730,360,76),"开始打砸",true)
@@ -699,31 +773,21 @@ func draw_game() -> void:
 	draw_view()
 	draw_impact()
 	var selected := valid_target(locked_target if charging else target_id)
-	if selected>=0 and objects[selected].kind=="dummy":
+	if guide_label_time<=0 and selected>=0 and objects[selected].kind=="dummy":
 		var item: Dictionary = objects[selected]
 		var label := project_to_screen(item.pos+Vector3.UP*item.size.y)+Vector2(81,-17)
 		h.rounded(Rect2(label+Vector2(-65,-22),Vector2(130,31)),PANEL_DARK,11)
 		h.center(item.title,label,17,PEACH)
 	if slap_flash>0.25:
 		h.center("啪！",project_to_screen(hit3d+Vector3.UP*0.4)+Vector2(62,60),36,GOLD)
-	draw_rhythm_panel()
-
-func draw_rhythm_panel() -> void:
-	h.rounded(RHYTHM_PANEL,PANEL_DARK,18,Color("5b496c"))
-	draw_beat_ring(Vector2(539,RHYTHM_PANEL.get_center().y),elapsed)
-	var instruction := "合圈时按空格，或点场景"
-	if charging and now()-charge_start>=0.28:
-		instruction = "两圈重合时，松手重砸"
-	elif elapsed>=6:
-		instruction = "空格 · 合圈时出手"
-	h.text(instruction,Vector2(620,816),24,PEACH if charging else h.INK)
-	var detail := section_name()
-	var color := Color("c6b0d0")
 	if guide_label_time>0 and elapsed>=INTRO:
-		detail = guide_label
-		color = guide_color
-	if streak>=4: detail += "  ·  %d 连拍" % streak
-	h.text(detail,Vector2(620,850),19,color)
+		var label_position := project_to_screen(guide_anchor)
+		label_position = label_position.clamp(VIEW_RECT.position+Vector2(88,31),VIEW_RECT.end-Vector2(88,16))
+		h.rounded(Rect2(label_position-Vector2(78,25),Vector2(156,33)),PANEL_DARK,10)
+		h.center(guide_label,label_position,18,guide_color)
+	var instruction := "地面光带合拢时，按空格或点目标 · 按住再松手重砸"
+	if elapsed<INTRO: instruction = "听四拍准备 · "+instruction
+	h.center(instruction,Vector2(720,881),18,h.MUTED)
 
 func draw_pause() -> void:
 	h.draw_rect(Rect2(0,0,1440,900),Color(0.02,0.03,0.05,0.9))
