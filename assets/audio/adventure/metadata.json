@@ -1,0 +1,153 @@
+{
+  "sample_rate": 22050,
+  "bit_depth": 16,
+  "channels": 1,
+  "beats_per_loop": 16,
+  "gain_policy": "All layers at 0 dB; master at -3 dB recommended; no layer normalization.",
+  "tracks": [
+    {
+      "id": "sunset",
+      "title": "落日汽水",
+      "bpm": 100,
+      "frames": 211680,
+      "duration": 9.6,
+      "files": {
+        "drums": {
+          "filename": "sunset_drums.wav",
+          "bytes": 423404,
+          "peak": 0.314633,
+          "rms": 0.034174,
+          "boundary_step": 0,
+          "max_sample_step": 0.179749
+        },
+        "bass": {
+          "filename": "sunset_bass.wav",
+          "bytes": 423404,
+          "peak": 0.154619,
+          "rms": 0.041237,
+          "boundary_step": 0,
+          "max_sample_step": 0.009886
+        },
+        "chords": {
+          "filename": "sunset_chords.wav",
+          "bytes": 423404,
+          "peak": 0.091737,
+          "rms": 0.018721,
+          "boundary_step": 0.001122,
+          "max_sample_step": 0.01716
+        },
+        "melody": {
+          "filename": "sunset_melody.wav",
+          "bytes": 423404,
+          "peak": 0.118136,
+          "rms": 0.032457,
+          "boundary_step": 0.001249,
+          "max_sample_step": 0.079152
+        }
+      },
+      "mix": {
+        "peak": 0.468358,
+        "rms": 0.068119,
+        "boundary_step": 0.002371,
+        "max_sample_step": 0.201259
+      },
+      "sum_of_layer_peaks": 0.679125
+    },
+    {
+      "id": "neon",
+      "title": "霓虹夜行",
+      "bpm": 120,
+      "frames": 176400,
+      "duration": 8,
+      "files": {
+        "drums": {
+          "filename": "neon_drums.wav",
+          "bytes": 352844,
+          "peak": 0.314633,
+          "rms": 0.037436,
+          "boundary_step": 0,
+          "max_sample_step": 0.179749
+        },
+        "bass": {
+          "filename": "neon_bass.wav",
+          "bytes": 352844,
+          "peak": 0.15308,
+          "rms": 0.040907,
+          "boundary_step": 0,
+          "max_sample_step": 0.008582
+        },
+        "chords": {
+          "filename": "neon_chords.wav",
+          "bytes": 352844,
+          "peak": 0.09362,
+          "rms": 0.018653,
+          "boundary_step": 0.000557,
+          "max_sample_step": 0.015418
+        },
+        "melody": {
+          "filename": "neon_melody.wav",
+          "bytes": 352844,
+          "peak": 0.097022,
+          "rms": 0.025552,
+          "boundary_step": 0.001545,
+          "max_sample_step": 0.052742
+        }
+      },
+      "mix": {
+        "peak": 0.436034,
+        "rms": 0.066064,
+        "boundary_step": 0.002101,
+        "max_sample_step": 0.178811
+      },
+      "sum_of_layer_peaks": 0.658355
+    },
+    {
+      "id": "cosmic",
+      "title": "星际派对",
+      "bpm": 140,
+      "frames": 151200,
+      "duration": 6.857142857142857,
+      "files": {
+        "drums": {
+          "filename": "cosmic_drums.wav",
+          "bytes": 302444,
+          "peak": 0.314633,
+          "rms": 0.040443,
+          "boundary_step": 0.000409,
+          "max_sample_step": 0.179749
+        },
+        "bass": {
+          "filename": "cosmic_bass.wav",
+          "bytes": 302444,
+          "peak": 0.150265,
+          "rms": 0.040698,
+          "boundary_step": 0,
+          "max_sample_step": 0.011595
+        },
+        "chords": {
+          "filename": "cosmic_chords.wav",
+          "bytes": 302444,
+          "peak": 0.092312,
+          "rms": 0.018636,
+          "boundary_step": 0.001068,
+          "max_sample_step": 0.019575
+        },
+        "melody": {
+          "filename": "cosmic_melody.wav",
+          "bytes": 302444,
+          "peak": 0.097623,
+          "rms": 0.027546,
+          "boundary_step": 0.003267,
+          "max_sample_step": 0.063886
+        }
+      },
+      "mix": {
+        "peak": 0.412267,
+        "rms": 0.065851,
+        "boundary_step": 0.004744,
+        "max_sample_step": 0.186289
+      },
+      "sum_of_layer_peaks": 0.654833
+    }
+  ]
+}

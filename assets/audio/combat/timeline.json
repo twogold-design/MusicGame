@@ -1,0 +1,117 @@
+{
+  "bpm": 120,
+  "sample_rate": 22050,
+  "bit_depth": 16,
+  "channels": 1,
+  "combat_start": 2,
+  "combat_end": 32,
+  "combat_beats": 60,
+  "beat_duration": 0.5,
+  "timing": "Zero-based combat beat b starts at 2 + 0.5 * b seconds. Fight beats are 0..59. Full file 34 seconds; no looping.",
+  "sections": [
+    {
+      "id": "count_in",
+      "from": 0,
+      "to": 2,
+      "description": "Four clear preparation taps at 0, 0.5, 1, 1.5 seconds"
+    },
+    {
+      "id": "combat_opening",
+      "from": 2,
+      "to": 6,
+      "beat_from": 0,
+      "beat_to_exclusive": 8,
+      "description": "Kick, bass and lead arrive together; two-bar introduction"
+    },
+    {
+      "id": "combat_groove",
+      "from": 6,
+      "to": 14,
+      "beat_from": 8,
+      "beat_to_exclusive": 24,
+      "description": "Full groove and offbeat chord taps"
+    },
+    {
+      "id": "break",
+      "from": 14,
+      "to": 18,
+      "beat_from": 24,
+      "beat_to_exclusive": 32,
+      "description": "Quarter-note kick stays loud and clear; harmony and melody recede"
+    },
+    {
+      "id": "rebuild",
+      "from": 18,
+      "to": 22,
+      "beat_from": 32,
+      "beat_to_exclusive": 40,
+      "description": "Melody returns and leads into final burst"
+    },
+    {
+      "id": "climax",
+      "from": 22,
+      "to": 32,
+      "beat_from": 40,
+      "beat_to_exclusive": 60,
+      "description": "Brighter lead octave, fuller bass and restrained fills; kick remains on every beat"
+    },
+    {
+      "id": "victory",
+      "from": 32,
+      "to": 34,
+      "description": "Resolving chord and short upward chime, then silence"
+    }
+  ],
+  "mixing": "combat.wav at -3 dB recommended. SFX default 0 dB (shot already quiet); perfect at most -3 dB if repeated frequently. No peak normalization.",
+  "files": {
+    "combat": {
+      "frames": 749700,
+      "duration": 34,
+      "bytes": 1499444,
+      "peak": 0.647217,
+      "rms": 0.093888,
+      "clipped_samples": 0
+    },
+    "shot": {
+      "frames": 2205,
+      "duration": 0.1,
+      "bytes": 4454,
+      "peak": 0.107513,
+      "rms": 0.024862,
+      "clipped_samples": 0
+    },
+    "perfect": {
+      "frames": 6174,
+      "duration": 0.28,
+      "bytes": 12392,
+      "peak": 0.270935,
+      "rms": 0.065887,
+      "clipped_samples": 0
+    },
+    "dash": {
+      "frames": 4851,
+      "duration": 0.22,
+      "bytes": 9746,
+      "peak": 0.10257,
+      "rms": 0.025522,
+      "clipped_samples": 0
+    },
+    "hurt": {
+      "frames": 5954,
+      "duration": 0.2700226757369614,
+      "bytes": 11952,
+      "peak": 0.208008,
+      "rms": 0.050796,
+      "clipped_samples": 0
+    },
+    "kill": {
+      "frames": 6615,
+      "duration": 0.3,
+      "bytes": 13274,
+      "peak": 0.174469,
+      "rms": 0.048759,
+      "clipped_samples": 0
+    }
+  },
+  "total_wav_bytes": 1551262
+}

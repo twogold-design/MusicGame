@@ -1,0 +1,834 @@
+{
+  "file": "guide.wav",
+  "bpm": 120,
+  "sample_rate": 22050,
+  "bit_depth": 16,
+  "channels": 1,
+  "frames": 1146600,
+  "duration": 52,
+  "bytes": 2293244,
+  "prepare_taps": 4,
+  "battle_taps": 96,
+  "total_taps": 100,
+  "final_tap": 49.5,
+  "first_onset_frames": 1,
+  "largest_onset_frames": 1,
+  "peak": 0.244415,
+  "rms": 0.011645,
+  "dc_mean": -9e-8,
+  "clipped_samples": 0,
+  "recommended_volume_db": -3,
+  "mix_recommendation": "guide -3dB, bed -4dB, each response -1dB. Start guide, bed and both response stems together from 0; pause/resume/stop all four together. Do not loop the 52s file. The guide is a quiet short woodblock/low knock, first beat of every bar brighter. Halfbeat response melody stays unchanged.",
+  "validation": {
+    "checks": 105,
+    "passed": true,
+    "actual_bed_plus_all_responses_plus_guide_peak": 0.574781,
+    "existing_music_sha256": {
+      "bed.wav": "1fcc9f9fe739f3c8e9c03c28034ba9584ddce008234231bff5d7ed6f9ec36009",
+      "response_even.wav": "28bfed1e648127d4a6059d8186b5545fd249013cee6291503299c219e6d12ff6",
+      "response_odd.wav": "cd92be148fd238d6a209dda93bd4fa5ee7985010b5994c0dfb1f7d976a1e42f6"
+    }
+  },
+  "events": [
+    {
+      "index": 0,
+      "time": 0,
+      "frame": 0,
+      "accent": true,
+      "battle_beat": -4,
+      "section": "count_in"
+    },
+    {
+      "index": 1,
+      "time": 0.5,
+      "frame": 11025,
+      "accent": false,
+      "battle_beat": -3,
+      "section": "count_in"
+    },
+    {
+      "index": 2,
+      "time": 1,
+      "frame": 22050,
+      "accent": false,
+      "battle_beat": -2,
+      "section": "count_in"
+    },
+    {
+      "index": 3,
+      "time": 1.5,
+      "frame": 33075,
+      "accent": false,
+      "battle_beat": -1,
+      "section": "count_in"
+    },
+    {
+      "index": 4,
+      "time": 2,
+      "frame": 44100,
+      "accent": true,
+      "battle_beat": 0,
+      "section": "battle"
+    },
+    {
+      "index": 5,
+      "time": 2.5,
+      "frame": 55125,
+      "accent": false,
+      "battle_beat": 1,
+      "section": "battle"
+    },
+    {
+      "index": 6,
+      "time": 3,
+      "frame": 66150,
+      "accent": false,
+      "battle_beat": 2,
+      "section": "battle"
+    },
+    {
+      "index": 7,
+      "time": 3.5,
+      "frame": 77175,
+      "accent": false,
+      "battle_beat": 3,
+      "section": "battle"
+    },
+    {
+      "index": 8,
+      "time": 4,
+      "frame": 88200,
+      "accent": true,
+      "battle_beat": 4,
+      "section": "battle"
+    },
+    {
+      "index": 9,
+      "time": 4.5,
+      "frame": 99225,
+      "accent": false,
+      "battle_beat": 5,
+      "section": "battle"
+    },
+    {
+      "index": 10,
+      "time": 5,
+      "frame": 110250,
+      "accent": false,
+      "battle_beat": 6,
+      "section": "battle"
+    },
+    {
+      "index": 11,
+      "time": 5.5,
+      "frame": 121275,
+      "accent": false,
+      "battle_beat": 7,
+      "section": "battle"
+    },
+    {
+      "index": 12,
+      "time": 6,
+      "frame": 132300,
+      "accent": true,
+      "battle_beat": 8,
+      "section": "battle"
+    },
+    {
+      "index": 13,
+      "time": 6.5,
+      "frame": 143325,
+      "accent": false,
+      "battle_beat": 9,
+      "section": "battle"
+    },
+    {
+      "index": 14,
+      "time": 7,
+      "frame": 154350,
+      "accent": false,
+      "battle_beat": 10,
+      "section": "battle"
+    },
+    {
+      "index": 15,
+      "time": 7.5,
+      "frame": 165375,
+      "accent": false,
+      "battle_beat": 11,
+      "section": "battle"
+    },
+    {
+      "index": 16,
+      "time": 8,
+      "frame": 176400,
+      "accent": true,
+      "battle_beat": 12,
+      "section": "battle"
+    },
+    {
+      "index": 17,
+      "time": 8.5,
+      "frame": 187425,
+      "accent": false,
+      "battle_beat": 13,
+      "section": "battle"
+    },
+    {
+      "index": 18,
+      "time": 9,
+      "frame": 198450,
+      "accent": false,
+      "battle_beat": 14,
+      "section": "battle"
+    },
+    {
+      "index": 19,
+      "time": 9.5,
+      "frame": 209475,
+      "accent": false,
+      "battle_beat": 15,
+      "section": "battle"
+    },
+    {
+      "index": 20,
+      "time": 10,
+      "frame": 220500,
+      "accent": true,
+      "battle_beat": 16,
+      "section": "battle"
+    },
+    {
+      "index": 21,
+      "time": 10.5,
+      "frame": 231525,
+      "accent": false,
+      "battle_beat": 17,
+      "section": "battle"
+    },
+    {
+      "index": 22,
+      "time": 11,
+      "frame": 242550,
+      "accent": false,
+      "battle_beat": 18,
+      "section": "battle"
+    },
+    {
+      "index": 23,
+      "time": 11.5,
+      "frame": 253575,
+      "accent": false,
+      "battle_beat": 19,
+      "section": "battle"
+    },
+    {
+      "index": 24,
+      "time": 12,
+      "frame": 264600,
+      "accent": true,
+      "battle_beat": 20,
+      "section": "battle"
+    },
+    {
+      "index": 25,
+      "time": 12.5,
+      "frame": 275625,
+      "accent": false,
+      "battle_beat": 21,
+      "section": "battle"
+    },
+    {
+      "index": 26,
+      "time": 13,
+      "frame": 286650,
+      "accent": false,
+      "battle_beat": 22,
+      "section": "battle"
+    },
+    {
+      "index": 27,
+      "time": 13.5,
+      "frame": 297675,
+      "accent": false,
+      "battle_beat": 23,
+      "section": "battle"
+    },
+    {
+      "index": 28,
+      "time": 14,
+      "frame": 308700,
+      "accent": true,
+      "battle_beat": 24,
+      "section": "battle"
+    },
+    {
+      "index": 29,
+      "time": 14.5,
+      "frame": 319725,
+      "accent": false,
+      "battle_beat": 25,
+      "section": "battle"
+    },
+    {
+      "index": 30,
+      "time": 15,
+      "frame": 330750,
+      "accent": false,
+      "battle_beat": 26,
+      "section": "battle"
+    },
+    {
+      "index": 31,
+      "time": 15.5,
+      "frame": 341775,
+      "accent": false,
+      "battle_beat": 27,
+      "section": "battle"
+    },
+    {
+      "index": 32,
+      "time": 16,
+      "frame": 352800,
+      "accent": true,
+      "battle_beat": 28,
+      "section": "battle"
+    },
+    {
+      "index": 33,
+      "time": 16.5,
+      "frame": 363825,
+      "accent": false,
+      "battle_beat": 29,
+      "section": "battle"
+    },
+    {
+      "index": 34,
+      "time": 17,
+      "frame": 374850,
+      "accent": false,
+      "battle_beat": 30,
+      "section": "battle"
+    },
+    {
+      "index": 35,
+      "time": 17.5,
+      "frame": 385875,
+      "accent": false,
+      "battle_beat": 31,
+      "section": "battle"
+    },
+    {
+      "index": 36,
+      "time": 18,
+      "frame": 396900,
+      "accent": true,
+      "battle_beat": 32,
+      "section": "battle"
+    },
+    {
+      "index": 37,
+      "time": 18.5,
+      "frame": 407925,
+      "accent": false,
+      "battle_beat": 33,
+      "section": "battle"
+    },
+    {
+      "index": 38,
+      "time": 19,
+      "frame": 418950,
+      "accent": false,
+      "battle_beat": 34,
+      "section": "battle"
+    },
+    {
+      "index": 39,
+      "time": 19.5,
+      "frame": 429975,
+      "accent": false,
+      "battle_beat": 35,
+      "section": "battle"
+    },
+    {
+      "index": 40,
+      "time": 20,
+      "frame": 441000,
+      "accent": true,
+      "battle_beat": 36,
+      "section": "battle"
+    },
+    {
+      "index": 41,
+      "time": 20.5,
+      "frame": 452025,
+      "accent": false,
+      "battle_beat": 37,
+      "section": "battle"
+    },
+    {
+      "index": 42,
+      "time": 21,
+      "frame": 463050,
+      "accent": false,
+      "battle_beat": 38,
+      "section": "battle"
+    },
+    {
+      "index": 43,
+      "time": 21.5,
+      "frame": 474075,
+      "accent": false,
+      "battle_beat": 39,
+      "section": "battle"
+    },
+    {
+      "index": 44,
+      "time": 22,
+      "frame": 485100,
+      "accent": true,
+      "battle_beat": 40,
+      "section": "battle"
+    },
+    {
+      "index": 45,
+      "time": 22.5,
+      "frame": 496125,
+      "accent": false,
+      "battle_beat": 41,
+      "section": "battle"
+    },
+    {
+      "index": 46,
+      "time": 23,
+      "frame": 507150,
+      "accent": false,
+      "battle_beat": 42,
+      "section": "battle"
+    },
+    {
+      "index": 47,
+      "time": 23.5,
+      "frame": 518175,
+      "accent": false,
+      "battle_beat": 43,
+      "section": "battle"
+    },
+    {
+      "index": 48,
+      "time": 24,
+      "frame": 529200,
+      "accent": true,
+      "battle_beat": 44,
+      "section": "battle"
+    },
+    {
+      "index": 49,
+      "time": 24.5,
+      "frame": 540225,
+      "accent": false,
+      "battle_beat": 45,
+      "section": "battle"
+    },
+    {
+      "index": 50,
+      "time": 25,
+      "frame": 551250,
+      "accent": false,
+      "battle_beat": 46,
+      "section": "battle"
+    },
+    {
+      "index": 51,
+      "time": 25.5,
+      "frame": 562275,
+      "accent": false,
+      "battle_beat": 47,
+      "section": "battle"
+    },
+    {
+      "index": 52,
+      "time": 26,
+      "frame": 573300,
+      "accent": true,
+      "battle_beat": 48,
+      "section": "battle"
+    },
+    {
+      "index": 53,
+      "time": 26.5,
+      "frame": 584325,
+      "accent": false,
+      "battle_beat": 49,
+      "section": "battle"
+    },
+    {
+      "index": 54,
+      "time": 27,
+      "frame": 595350,
+      "accent": false,
+      "battle_beat": 50,
+      "section": "battle"
+    },
+    {
+      "index": 55,
+      "time": 27.5,
+      "frame": 606375,
+      "accent": false,
+      "battle_beat": 51,
+      "section": "battle"
+    },
+    {
+      "index": 56,
+      "time": 28,
+      "frame": 617400,
+      "accent": true,
+      "battle_beat": 52,
+      "section": "battle"
+    },
+    {
+      "index": 57,
+      "time": 28.5,
+      "frame": 628425,
+      "accent": false,
+      "battle_beat": 53,
+      "section": "battle"
+    },
+    {
+      "index": 58,
+      "time": 29,
+      "frame": 639450,
+      "accent": false,
+      "battle_beat": 54,
+      "section": "battle"
+    },
+    {
+      "index": 59,
+      "time": 29.5,
+      "frame": 650475,
+      "accent": false,
+      "battle_beat": 55,
+      "section": "battle"
+    },
+    {
+      "index": 60,
+      "time": 30,
+      "frame": 661500,
+      "accent": true,
+      "battle_beat": 56,
+      "section": "battle"
+    },
+    {
+      "index": 61,
+      "time": 30.5,
+      "frame": 672525,
+      "accent": false,
+      "battle_beat": 57,
+      "section": "battle"
+    },
+    {
+      "index": 62,
+      "time": 31,
+      "frame": 683550,
+      "accent": false,
+      "battle_beat": 58,
+      "section": "battle"
+    },
+    {
+      "index": 63,
+      "time": 31.5,
+      "frame": 694575,
+      "accent": false,
+      "battle_beat": 59,
+      "section": "battle"
+    },
+    {
+      "index": 64,
+      "time": 32,
+      "frame": 705600,
+      "accent": true,
+      "battle_beat": 60,
+      "section": "battle"
+    },
+    {
+      "index": 65,
+      "time": 32.5,
+      "frame": 716625,
+      "accent": false,
+      "battle_beat": 61,
+      "section": "battle"
+    },
+    {
+      "index": 66,
+      "time": 33,
+      "frame": 727650,
+      "accent": false,
+      "battle_beat": 62,
+      "section": "battle"
+    },
+    {
+      "index": 67,
+      "time": 33.5,
+      "frame": 738675,
+      "accent": false,
+      "battle_beat": 63,
+      "section": "battle"
+    },
+    {
+      "index": 68,
+      "time": 34,
+      "frame": 749700,
+      "accent": true,
+      "battle_beat": 64,
+      "section": "battle"
+    },
+    {
+      "index": 69,
+      "time": 34.5,
+      "frame": 760725,
+      "accent": false,
+      "battle_beat": 65,
+      "section": "battle"
+    },
+    {
+      "index": 70,
+      "time": 35,
+      "frame": 771750,
+      "accent": false,
+      "battle_beat": 66,
+      "section": "battle"
+    },
+    {
+      "index": 71,
+      "time": 35.5,
+      "frame": 782775,
+      "accent": false,
+      "battle_beat": 67,
+      "section": "battle"
+    },
+    {
+      "index": 72,
+      "time": 36,
+      "frame": 793800,
+      "accent": true,
+      "battle_beat": 68,
+      "section": "battle"
+    },
+    {
+      "index": 73,
+      "time": 36.5,
+      "frame": 804825,
+      "accent": false,
+      "battle_beat": 69,
+      "section": "battle"
+    },
+    {
+      "index": 74,
+      "time": 37,
+      "frame": 815850,
+      "accent": false,
+      "battle_beat": 70,
+      "section": "battle"
+    },
+    {
+      "index": 75,
+      "time": 37.5,
+      "frame": 826875,
+      "accent": false,
+      "battle_beat": 71,
+      "section": "battle"
+    },
+    {
+      "index": 76,
+      "time": 38,
+      "frame": 837900,
+      "accent": true,
+      "battle_beat": 72,
+      "section": "battle"
+    },
+    {
+      "index": 77,
+      "time": 38.5,
+      "frame": 848925,
+      "accent": false,
+      "battle_beat": 73,
+      "section": "battle"
+    },
+    {
+      "index": 78,
+      "time": 39,
+      "frame": 859950,
+      "accent": false,
+      "battle_beat": 74,
+      "section": "battle"
+    },
+    {
+      "index": 79,
+      "time": 39.5,
+      "frame": 870975,
+      "accent": false,
+      "battle_beat": 75,
+      "section": "battle"
+    },
+    {
+      "index": 80,
+      "time": 40,
+      "frame": 882000,
+      "accent": true,
+      "battle_beat": 76,
+      "section": "battle"
+    },
+    {
+      "index": 81,
+      "time": 40.5,
+      "frame": 893025,
+      "accent": false,
+      "battle_beat": 77,
+      "section": "battle"
+    },
+    {
+      "index": 82,
+      "time": 41,
+      "frame": 904050,
+      "accent": false,
+      "battle_beat": 78,
+      "section": "battle"
+    },
+    {
+      "index": 83,
+      "time": 41.5,
+      "frame": 915075,
+      "accent": false,
+      "battle_beat": 79,
+      "section": "battle"
+    },
+    {
+      "index": 84,
+      "time": 42,
+      "frame": 926100,
+      "accent": true,
+      "battle_beat": 80,
+      "section": "battle"
+    },
+    {
+      "index": 85,
+      "time": 42.5,
+      "frame": 937125,
+      "accent": false,
+      "battle_beat": 81,
+      "section": "battle"
+    },
+    {
+      "index": 86,
+      "time": 43,
+      "frame": 948150,
+      "accent": false,
+      "battle_beat": 82,
+      "section": "battle"
+    },
+    {
+      "index": 87,
+      "time": 43.5,
+      "frame": 959175,
+      "accent": false,
+      "battle_beat": 83,
+      "section": "battle"
+    },
+    {
+      "index": 88,
+      "time": 44,
+      "frame": 970200,
+      "accent": true,
+      "battle_beat": 84,
+      "section": "battle"
+    },
+    {
+      "index": 89,
+      "time": 44.5,
+      "frame": 981225,
+      "accent": false,
+      "battle_beat": 85,
+      "section": "battle"
+    },
+    {
+      "index": 90,
+      "time": 45,
+      "frame": 992250,
+      "accent": false,
+      "battle_beat": 86,
+      "section": "battle"
+    },
+    {
+      "index": 91,
+      "time": 45.5,
+      "frame": 1003275,
+      "accent": false,
+      "battle_beat": 87,
+      "section": "battle"
+    },
+    {
+      "index": 92,
+      "time": 46,
+      "frame": 1014300,
+      "accent": true,
+      "battle_beat": 88,
+      "section": "battle"
+    },
+    {
+      "index": 93,
+      "time": 46.5,
+      "frame": 1025325,
+      "accent": false,
+      "battle_beat": 89,
+      "section": "battle"
+    },
+    {
+      "index": 94,
+      "time": 47,
+      "frame": 1036350,
+      "accent": false,
+      "battle_beat": 90,
+      "section": "battle"
+    },
+    {
+      "index": 95,
+      "time": 47.5,
+      "frame": 1047375,
+      "accent": false,
+      "battle_beat": 91,
+      "section": "battle"
+    },
+    {
+      "index": 96,
+      "time": 48,
+      "frame": 1058400,
+      "accent": true,
+      "battle_beat": 92,
+      "section": "battle"
+    },
+    {
+      "index": 97,
+      "time": 48.5,
+      "frame": 1069425,
+      "accent": false,
+      "battle_beat": 93,
+      "section": "battle"
+    },
+    {
+      "index": 98,
+      "time": 49,
+      "frame": 1080450,
+      "accent": false,
+      "battle_beat": 94,
+      "section": "battle"
+    },
+    {
+      "index": 99,
+      "time": 49.5,
+      "frame": 1091475,
+      "accent": false,
+      "battle_beat": 95,
+      "section": "battle"
+    }
+  ]
+}

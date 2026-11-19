@@ -1,0 +1,72 @@
+{
+  "sample_rate": 22050,
+  "bit_depth": 16,
+  "channels": 1,
+  "highpass_hz": 35,
+  "mixing": "Material effects at -5 dB recommended under bed.wav (-3 dB). Keep rhythmic player melody audible. Use one material impact per strike, with optional thump only for a large smash. Avoid stacking all material effects for every fragment.",
+  "descriptions": {
+    "wood": "Dry board split: low hollow knock and irregular cracks.",
+    "glass": "Clear small glass shard cascade with restrained high frequencies.",
+    "metal": "Dense metal clang with short inharmonic ringing.",
+    "thump": "Heavy close impact with audible low-mid punch, no long sub tail.",
+    "slap": "Cartoony palm slap: crisp dry clap with a warm short pop, no long hiss."
+  },
+  "files": {
+    "wood": {
+      "frames": 4190,
+      "duration": 0.19002267573696144,
+      "bytes": 8424,
+      "peak": 0.450653,
+      "rms": 0.060001,
+      "onset_ms": 0.0454,
+      "dc_mean": -0.00006342,
+      "clipped_samples": 0
+    },
+    "glass": {
+      "frames": 5292,
+      "duration": 0.24,
+      "bytes": 10628,
+      "peak": 0.264587,
+      "rms": 0.033585,
+      "onset_ms": 0.0454,
+      "dc_mean": 0.00000946,
+      "clipped_samples": 0
+    },
+    "metal": {
+      "frames": 5954,
+      "duration": 0.2700226757369614,
+      "bytes": 11952,
+      "peak": 0.324127,
+      "rms": 0.04979,
+      "onset_ms": 0.0454,
+      "dc_mean": 0.00001834,
+      "clipped_samples": 0
+    },
+    "thump": {
+      "frames": 3969,
+      "duration": 0.18,
+      "bytes": 7982,
+      "peak": 0.400208,
+      "rms": 0.083051,
+      "onset_ms": 0.0454,
+      "dc_mean": -0.00007432,
+      "clipped_samples": 0
+    },
+    "slap": {
+      "frames": 2977,
+      "duration": 0.1350113378684807,
+      "bytes": 5998,
+      "peak": 0.378723,
+      "rms": 0.051951,
+      "onset_ms": 0.0454,
+      "dc_mean": 0.00002391,
+      "clipped_samples": 0
+    }
+  },
+  "validation": {
+    "checks": 15,
+    "passed": true,
+    "total_wav_bytes": 44984,
+    "clipped_samples": 0
+  }
+}

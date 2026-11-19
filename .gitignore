@@ -1,0 +1,6 @@
+/.godot/
+/.runtime/
+/build/
+/dist/
+/artifacts/
+node_modules/

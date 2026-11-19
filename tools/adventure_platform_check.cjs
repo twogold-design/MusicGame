@@ -1,0 +1,35 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),http=require('node:http');
+const {pathToFileURL}=require('node:url');
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const root=path.resolve(__dirname,'..'),web=path.join(root,'build/web');
+const mime={'.html':'text/html','.js':'text/javascript','.wasm':'application/wasm','.pck':'application/octet-stream','.png':'image/png'};
+const server=http.createServer((req,res)=>{const file=path.join(web,decodeURIComponent(new URL(req.url,'http://localhost').pathname));if(!file.startsWith(web+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}res.setHeader('Content-Type',mime[path.extname(file)]||'text/plain');fs.createReadStream(file).pipe(res);});
+(async()=>{
+ await new Promise(r=>server.listen(8830,'127.0.0.1',r));
+ const context=await chromium.launchPersistentContext(path.join(root,'.runtime/adventure-platform'),{executablePath:process.env.CHROME_BIN||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,viewport:{width:900,height:450},hasTouch:true,args:['--no-sandbox','--enable-unsafe-swiftshader','--disable-crash-reporter','--disable-breakpad']});
+ const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!m.text().includes('404'))errors.push(m.text());});
+ const screen=s=>page.waitForFunction(s=>window.meowState?.screen===s,s,{timeout:60000});
+ const tap=(x,y)=>page.touchscreen.tap(90+x*.5,y*.5);
+ await page.goto('http://127.0.0.1:8830/index.html');await screen('menu');
+ const easy=await page.evaluate(()=>window.meowState.easy);
+ await tap(440,488);await page.waitForTimeout(150);assert.equal(await page.evaluate(()=>window.meowState.easy),!easy);
+ if(!easy){await tap(440,488);await page.waitForTimeout(150);}
+ await tap(180,490);await screen('adv_intro');await tap(710,749);await screen('adv_play');
+ await page.waitForFunction(()=>window.meowState.adventure.beat>=0);
+ await tap(1220,560);await page.waitForTimeout(800);assert.equal((await page.evaluate(()=>window.meowState.adventure.player))[1],5);
+ await tap(1210,470);await tap(1220,560);await page.waitForTimeout(800);assert.equal((await page.evaluate(()=>window.meowState.adventure.player))[1],3);
+ await page.screenshot({path:path.join(root,'artifacts/adventure-mobile.png')});
+ await tap(1320,50);await screen('adv_pause');
+ const paused=await page.evaluate(()=>window.meowState.adventure.elapsed);await page.waitForTimeout(350);assert.equal(await page.evaluate(()=>window.meowState.adventure.elapsed),paused);
+ await tap(820,510);await screen('menu');
+ await page.setViewportSize({width:450,height:900});assert.equal(await page.locator('#rotate').isVisible(),true);
+ await page.setViewportSize({width:1440,height:900});
+ await page.goto(pathToFileURL(path.join(root,'.runtime/adventure-package/index.html')).href);await screen('menu');
+ await page.mouse.click(180,489);await screen('adv_intro');await page.keyboard.press('Enter');await screen('adv_play');
+ await page.waitForTimeout(2800);await page.keyboard.press('ArrowUp');await page.waitForTimeout(800);assert.equal((await page.evaluate(()=>window.meowState.adventure.player))[1],5);
+ await context.close();await new Promise(r=>server.close(r));
+ const manifest=JSON.parse(fs.readFileSync(path.join(root,'dist/manifest.json'),'utf8').replace(/^\uFEFF/,''));
+ assert(manifest.web_bytes<200000000&&manifest.zip_bytes<200000000);assert.deepEqual(errors,[]);
+ fs.writeFileSync(path.join(root,'artifacts/adventure-platform-results.json'),JSON.stringify({http:true,landscapeTouch:true,dash:true,pause:true,portraitPrompt:true,extractedZip:true,webBytes:manifest.web_bytes,zipBytes:manifest.zip_bytes,errors},null,2));
+ console.log('PASS: adventure HTTP, landscape touch, dash, pause, portrait prompt, extracted package',manifest.web_bytes,manifest.zip_bytes);
+})().catch(e=>{console.error(e);server.close();process.exitCode=1;});
