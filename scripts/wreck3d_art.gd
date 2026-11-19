@@ -330,11 +330,12 @@ static func create_prop(kind: String, size: Vector3, variant: int = 0) -> Node3D
 				Vector3(-0.355, 0.155, 0.538), Vector3(0.355, 0.155, 0.538)]:
 				badge(root, "DoorScrew", screw_center, 0.021, dark)
 		"dummy":
+			var jacket := material([Color("4b787c"), Color("ae6d3c"), Color("6261a5")][variant])
 			box(root, "LeftLeg", Vector3(-0.16, 0.13, 0), Vector3(0.20, 0.26, 0.32), ink)
 			box(root, "RightLeg", Vector3(0.16, 0.13, 0), Vector3(0.20, 0.26, 0.32), ink)
-			box(root, "Body", Vector3(0, 0.43, 0), Vector3(0.58, 0.39, 0.36), material(Color("4b787c")), 0.11)
-			box(root, "LeftArm", Vector3(-0.37, 0.40, 0), Vector3(0.14, 0.34, 0.19), material(Color("4b787c")), 0.065)
-			box(root, "RightArm", Vector3(0.37, 0.40, 0), Vector3(0.14, 0.34, 0.19), material(Color("4b787c")), 0.065)
+			box(root, "Body", Vector3(0, 0.43, 0), Vector3(0.58, 0.39, 0.36), jacket, 0.11)
+			box(root, "LeftArm", Vector3(-0.37, 0.40, 0), Vector3(0.14, 0.34, 0.19), jacket, 0.065)
+			box(root, "RightArm", Vector3(0.37, 0.40, 0), Vector3(0.14, 0.34, 0.19), jacket, 0.065)
 			box(root, "Tie", Vector3(0, 0.46, 0.195), Vector3(0.09, 0.25, 0.03), gold)
 			var head := Node3D.new()
 			head.name = "Head"

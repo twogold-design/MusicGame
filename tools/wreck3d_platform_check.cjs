@@ -1,19 +1,6 @@
-const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),http=require('node:http');
-const {pathToFileURL}=require('node:url'),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
-const root=path.resolve(__dirname,'..'),web=path.join(root,'build/web');
-const server=http.createServer((req,res)=>{const file=path.join(web,new URL(req.url,'http://localhost').pathname);if(!file.startsWith(web+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile()){res.writeHead(404);res.end();return;}res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.wasm':'application/wasm'})[path.extname(file)]||'application/octet-stream');fs.createReadStream(file).pipe(res);});
-(async()=>{
- const context=await chromium.launchPersistentContext(path.join(root,'.runtime/wreck3d-platform'),{executablePath:process.env.CHROME_BIN||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,viewport:{width:1440,height:900},hasTouch:true,args:['--no-sandbox','--enable-unsafe-swiftshader','--disable-crash-reporter','--disable-breakpad']});
- const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!m.text().includes('404'))errors.push(m.text());});
- const screen=s=>page.waitForFunction(s=>window.meowState?.screen===s,s,{timeout:90000});
- const at=t=>page.waitForFunction(t=>window.meowState?.screen==='combat_play'&&window.meowState.combat.elapsed+(performance.now()-window.meowState.stamp)/1000>=t,t,{timeout:15000});
- await page.goto(pathToFileURL(path.join(root,'.runtime/wreck3d-package/index.html')).href);await screen('combat_intro');await page.screenshot({path:path.join(root,'artifacts/wreck3d-intro.png')});await page.keyboard.press('Enter');await screen('combat_play');await page.waitForTimeout(180);await page.screenshot({path:path.join(root,'artifacts/wreck3d-before.png')});
- const dummy=(await page.evaluate(()=>window.meowState.combat.objects)).find(o=>o.kind==='dummy');
- await at(1.925);await page.mouse.click(dummy.x,dummy.y);await at(2.15);assert.equal(await page.evaluate(()=>window.meowState.combat.slaps),1);
- await at(2.425);await page.keyboard.press('Space');await at(2.54);await page.screenshot({path:path.join(root,'artifacts/wreck3d-slap.png')});
- await page.keyboard.press('Escape');await screen('combat_pause');const paused=await page.evaluate(()=>window.meowState.combat.elapsed);await page.waitForTimeout(200);assert.equal(await page.evaluate(()=>window.meowState.combat.elapsed),paused);await page.keyboard.press('Escape');await screen('combat_play');
- await new Promise(r=>server.listen(8836,'127.0.0.1',r));await page.setViewportSize({width:900,height:450});await page.goto('http://127.0.0.1:8836/index.html');await screen('combat_intro');await page.touchscreen.tap(90+600*.5,770*.5);await screen('combat_play');await at(1.925);await page.touchscreen.tap(450,410);await at(2.2);assert.equal(await page.evaluate(()=>window.meowState.combat.resolved),1);await page.screenshot({path:path.join(root,'artifacts/wreck3d-mobile.png')});
- await page.setViewportSize({width:450,height:900});assert(await page.locator('#rotate').isVisible());await context.close();await new Promise(r=>server.close(r));assert.deepEqual(errors,[]);
- const manifest=JSON.parse(fs.readFileSync(path.join(root,'dist/manifest.json'),'utf8').replace(/^\uFEFF/,''));assert(manifest.web_bytes<200000000&&manifest.zip_bytes<200000000);
- fs.writeFileSync(path.join(root,'artifacts/wreck3d-platform-results.json'),JSON.stringify({extractedZip:true,actual3dSlap:true,pause:true,http:true,mobile:true,portrait:true,errors,webBytes:manifest.web_bytes,zipBytes:manifest.zip_bytes},null,2));console.log('PASS final 3D extracted ZIP, slap, pause, HTTP, touch, portrait',manifest.web_bytes,manifest.zip_bytes);
-})().catch(e=>{console.error(e);server.close();process.exit(1);});
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
+
+process.env.WRECK3D_ENTRY = pathToFileURL(path.resolve(__dirname, '../.runtime/wreck3d-package/index.html')).href;
+process.env.WRECK3D_SKIP_PACKAGE = '1';
+require('./wreck3d_browser_check.cjs');

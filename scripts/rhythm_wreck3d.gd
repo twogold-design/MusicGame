@@ -1,6 +1,8 @@
 extends "res://scripts/rhythm_demolition.gd"
 
-const PLAY_END := 50.0
+const CHARGE_MIN := 0.30
+const CHARGE_FULL := 0.75
+const TAP_COOLDOWN := 0.09
 const VIEW_RECT := Rect2(48,159,1344,686)
 const FLOOR_MARKERS := [Vector2(-1,-1),Vector2(1,-1),Vector2(-1,1),Vector2(1,1)]
 const PANEL_DARK := Color("302541")
@@ -14,16 +16,12 @@ var camera: Camera3D
 var avatar: Node3D
 var hammer: Node3D
 var indicator: Node3D
-var beat_arrows: Array[Node3D] = []
-var arrow_light: StandardMaterial3D
+var marker_material: StandardMaterial3D
 var target_light: OmniLight3D
 var hammer_light: StandardMaterial3D
-var marquee_light: StandardMaterial3D
-var upbeats := PackedFloat32Array()
 var physical: Array = []
 var loot: Array = []
 var waves3d: Array = []
-var track: Dictionary = {}
 var cash := 0
 var slaps := 0
 var looted := 0
@@ -33,40 +31,31 @@ var hit3d := Vector3.ZERO
 var impact_target := -1
 var impact_time := 0.0
 var impact_strength := 0.0
-var selected_visual := -1
 var slap_flash := 0.0
+var slapped_target := -1
+var locked_point := Vector3.ZERO
+var impact_label := ""
+var impact_label_time := 0.0
 var palm: MeshInstance3D
 var shop_identity := 0
-var beat_guide: AudioStreamPlayer
-var guide_label := ""
-var guide_color := GOLD
-var guide_label_time := 0.0
-var guide_anchor := Vector3.ZERO
 var combat_backdrop := Color("29223d")
 var meshes := preload("res://scripts/wreck3d_art.gd")
 
 func _init(host) -> void:
 	super(host)
-	track = JSON.parse_string(FileAccess.get_file_as_string("res://assets/audio/wreck3d/metadata.json"))
-	for cue in track.cues:
-		var position_in_bar := float(cue.beat)
-		if not is_equal_approx(position_in_bar,roundf(position_in_bar)):
-			upbeats.append(float(cue.time))
-	music.stream = load("res://assets/audio/wreck3d/bed.wav")
-	music.volume_db = -4
-	for i in range(2): response_players[i].stream = load("res://assets/audio/wreck3d/response_%s.wav" % ("even" if i==0 else "odd"))
-	for i in range(8): melody_players[i].stream = load("res://assets/audio/wreck3d/shot_%d.wav" % i)
-	sounds.dash.stream = load("res://assets/audio/wreck3d/dash.wav")
+
+	var bed: AudioStreamWAV = load("res://assets/audio/wreck3d/bed.wav").duplicate()
+	bed.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	bed.loop_end = int(round(bed.get_length()*bed.mix_rate))
+	music.stream = bed
+	music.volume_db = -9
 	var clap := AudioStreamPlayer.new()
 	clap.stream = load("res://assets/audio/demolition/slap.wav")
 	clap.volume_db = -5
 	clap.max_polyphony = 2
 	h.add_child(clap)
 	demo_sounds.slap = clap
-	beat_guide = AudioStreamPlayer.new()
-	beat_guide.stream = load("res://assets/audio/wreck3d/guide.wav")
-	beat_guide.volume_db = -3
-	h.add_child(beat_guide)
+
 	view = SubViewport.new()
 	view.size = Vector2i(VIEW_RECT.size)
 	view.own_world_3d = true
@@ -75,35 +64,38 @@ func _init(host) -> void:
 	h.add_child(view)
 	build_shop()
 
-func make_chart() -> Array:
-	var chart: Array = []
-	for entry in track.cues:
-		chart.append({"beat":float(entry.beat),"time":float(entry.time),"type":"tap","kind":"tap","target":-1,"status":0,"offset":0.0,"sound":false,"sample":int(entry.sample_index),"voice":str(entry.voice)})
-	return chart
-
-func build_room(_r: int) -> void:
-	pass
-
 func start() -> void:
-	h.easy = true
-	super.start()
-	beat_guide.play()
+	stop()
+	h.music.stop()
+	h.adventure.stop_audio()
+	elapsed = 0.0
+	last_strike = -99.0
 	cash = 0
 	slaps = 0
 	looted = 0
+	broken = 0
+	heavy_hits = 0
+	wall_breaks = 0
+	chain_hits = 0
+	total_smashes = 0
 	crates_revealed = 0
-	guide_label = ""
-	guide_label_time = 0
-	impact_time = 0
+	impact_label = ""
+	impact_label_time = 0.0
+	impact_time = 0.0
 	impact_target = -1
+	slap_flash = 0.0
+	slapped_target = -1
+	punch = 0.0
+	shake = 0.0
+	won = false
 	build_shop()
 	shop_identity = stage.get_instance_id()
-	target_id = pick_target()
+	h.screen = "combat_play"
+	view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	music.play()
 
 func stop() -> void:
 	super.stop()
-	beat_guide.stop()
-	beat_guide.stream_paused = false
 	for entry in physical:
 		if is_instance_valid(entry.body): entry.body.freeze = true
 
@@ -149,7 +141,6 @@ func build_shop() -> void:
 	physical.clear()
 	loot.clear()
 	waves3d.clear()
-	selected_visual = -1
 	var environment := WorldEnvironment.new()
 	var settings := Environment.new()
 	settings.background_mode = Environment.BG_COLOR
@@ -178,7 +169,8 @@ func build_shop() -> void:
 	stage.add_child(camera)
 	frame_shop()
 	camera.current = true
-	marquee_light = ShopDecor.build(stage)
+	var marquee_light := ShopDecor.build(stage)
+	marquee_light.emission_energy_multiplier = 0.55
 	collider(stage,Vector3(0,-0.3,0),Vector3(25,0.6,15))
 	collider(stage,Vector3(0,1.5,-7.3),Vector3(25,3,0.35))
 	collider(stage,Vector3(-12.3,1.5,0),Vector3(0.35,3,15))
@@ -200,9 +192,9 @@ func build_shop() -> void:
 	add_prop("desk",Vector3(0.2,0,4.5),Vector3(2.8,1.1,1.6),8,"wood",50)
 	add_prop("television",Vector3(0.2,1.2,4.5),Vector3(1.7,1.35,0.6),4,"glass",60)
 	for pos in [Vector3(-11,0,1),Vector3(11,0,4.8),Vector3(2,0,-4.6)]: add_prop("plant",pos,Vector3(1.1,1.8,1.1),3,"glass",20)
-	add_prop("dummy",Vector3(5.2,0,3.5),Vector3(1.25,2.1,1.15),18,"slap",160,"催加班经理")
-	add_prop("dummy",Vector3(8.6,0,4.7),Vector3(1.25,2.1,1.15),18,"slap",160,"插队大叔")
-	add_prop("dummy",Vector3(-2.1,0,-5),Vector3(1.25,2.1,1.15),18,"slap",160,"开会达人")
+	add_prop("dummy",Vector3(5.2,0,3.5),Vector3(1.25,2.1,1.15),0,"slap",0,"催加班经理",0)
+	add_prop("dummy",Vector3(8.6,0,4.7),Vector3(1.25,2.1,1.15),0,"slap",0,"插队大叔",1)
+	add_prop("dummy",Vector3(-2.1,0,-5),Vector3(1.25,2.1,1.15),0,"slap",0,"开会达人",2)
 	# Breakable architectural pieces expose a permanent hole in the facade.
 	for x in [-8.0,0.0,8.0]: add_prop("wall",Vector3(x,0,-6.65),Vector3(2.6,2.8,0.3),18,"wood",40)
 	avatar = meshes.create_hero()
@@ -222,47 +214,27 @@ func build_shop() -> void:
 
 func build_floor_markers() -> void:
 	indicator = Node3D.new()
-	indicator.name = "BeatLandingMarks"
+	indicator.name = "TargetCorners"
 	stage.add_child(indicator)
 	indicator.visible = false
-	beat_arrows.clear()
-	arrow_light = StandardMaterial3D.new()
-	arrow_light.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var border := StandardMaterial3D.new()
-	border.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	border.albedo_color = Color("233244")
-	var arrow_mesh := PlaneMesh.new()
-	arrow_mesh.size = Vector2(0.56,0.21)
-	var stripe_mesh := PlaneMesh.new()
-	stripe_mesh.size = Vector2(0.52,0.14)
-	var outline_mesh := PlaneMesh.new()
-	outline_mesh.size = Vector2(0.58,0.20)
+	marker_material = StandardMaterial3D.new()
+	marker_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var stripe := PlaneMesh.new()
+	stripe.size = Vector2(0.32,0.085)
 	for direction: Vector2 in FLOOR_MARKERS:
-		var landing := MeshInstance3D.new()
-		landing.mesh = arrow_mesh
-		landing.material_override = border
-		landing.rotation.y = -direction.angle()
-		landing.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		indicator.add_child(landing)
-		var runner := Node3D.new()
-		runner.rotation.y = landing.rotation.y
-		runner.visible = false
-		stage.add_child(runner)
-		beat_arrows.append(runner)
-		for side in [-1,1]:
-			var outline := MeshInstance3D.new()
-			outline.mesh = outline_mesh
-			outline.material_override = border
-			outline.position = Vector3(0.11,0,side*0.115)
-			outline.rotation.y = -side*0.61
-			outline.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			runner.add_child(outline)
-			var stripe := MeshInstance3D.new()
-			stripe.mesh = stripe_mesh
-			stripe.material_override = arrow_light
-			stripe.position.y = 0.004
-			stripe.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-			outline.add_child(stripe)
+		var corner := Node3D.new()
+		indicator.add_child(corner)
+		for axis in [0,1]:
+			var line := MeshInstance3D.new()
+			line.mesh = stripe
+			line.material_override = marker_material
+			line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			if axis == 0:
+				line.position.x = -direction.x*0.12
+			else:
+				line.rotation.y = PI*0.5
+				line.position.z = -direction.y*0.12
+			corner.add_child(line)
 	target_light = OmniLight3D.new()
 	target_light.visible = false
 	target_light.shadow_enabled = false
@@ -307,7 +279,7 @@ func add_prop(kind: String,pos: Vector3,size: Vector3,health: float,material: St
 	visual.position = pos
 	stage.add_child(visual)
 	var solid := collider(stage,pos+Vector3(0,size.y*0.5,0),size*Vector3(0.9,1,0.9))
-	objects.append({"id":objects.size(),"kind":kind,"pos":pos,"size":size,"hp":health,"maxhp":health,"material":material,"alive":true,"value":value,"visual":visual,"collider":solid,"flash":0.0,"title":title,"revealed":false,"slap":0.0,"origin":pos})
+	objects.append({"id":objects.size(),"kind":kind,"pos":pos,"size":size,"hp":health,"maxhp":health,"material":material,"alive":true,"value":value,"visual":visual,"collider":solid,"flash":0.0,"title":title,"revealed":false,"slap":0.0,"slap_side":1.0,"slap_power":0.0,"variant":variant})
 	return objects.size()-1
 
 func pick_target() -> int:
@@ -327,103 +299,78 @@ func valid_target(id: int) -> int:
 	if id>=0 and id<objects.size() and objects[id].alive: return id
 	return pick_target()
 
-func strike(kind: String,id: int) -> void:
-	var clock := now()
-	if clock<INTRO-window_early() or clock>=PLAY_END: return
-	var before := weak_hits
-	var cue_index := closest_cue()
-	super.strike(kind,id)
-	if weak_hits==before: return
-	var judged: float = clock-h.offset_ms/1000.0
-	var offbeat := judged-roundf(judged/BEAT)*BEAT
-	var label := "等下一拍"
-	if cue_index<0: label = "早了一点" if offbeat<0 else "晚了一点"
-	show_judgement(label,PEACH,0.5,impact_target)
+func press(source := "test") -> void:
+	var id := valid_target(target_id)
+	var point: Vector3 = objects[id].pos if id>=0 else avatar.position
+	begin_hit(source,id,point)
 
-func accept(index: int) -> void:
-	if now()<float(cues[index].time):
-		show_judgement("准备好了",MINT,0.20,int(cues[index].target))
-	super.accept(index)
-
-func execute_cue(index: int) -> void:
-	if cues[index].status!=1: return
-	var offset := float(cues[index].offset)
-	var heavy: bool = cues[index].kind=="heavy"
-	super.execute_cue(index)
-	if offset>0.09:
-		show_judgement("稍晚 · 接上了",PEACH,0.42,impact_target)
-	else:
-		show_judgement("准拍 · 重砸！" if heavy else "准拍！",MINT,0.42,impact_target)
-
-func miss_cue(index: int,_early_release := false) -> void:
-	var beat_number := float(cues[index].beat)
-	if not is_equal_approx(beat_number,roundf(beat_number)):
-		cues[index].status = 3
+func begin_hit(source: String,id: int,point: Vector3) -> void:
+	if h.screen!="combat_play" or not active_input.is_empty() or elapsed-last_strike<TAP_COOLDOWN:
 		return
-	super.miss_cue(index)
+	active_input = source
+	charging = true
+	charge_start = elapsed
+	last_strike = elapsed
+	locked_target = id
+	locked_point = point
+	var approach := action_position(id,point)
+	if avatar.position.distance_to(approach)>2.0:
+		avatar.position = approach+Vector3(0,0,0.35)
+	face_target(point)
+	hit_target(id,point,0.0)
 
-func show_judgement(label: String,color: Color,seconds: float,id: int) -> void:
-	guide_label = label
-	guide_color = color
-	guide_label_time = seconds
-	guide_anchor = avatar.position+Vector3.UP*2.0
-	if id>=0 and id<objects.size():
-		var item: Dictionary = objects[id]
-		guide_anchor = item.pos+Vector3.UP*(item.size.y+0.6)
+func release(source := "test") -> void:
+	if h.screen!="combat_play" or active_input!=source: return
+	var power := charge_level()
+	active_input = ""
+	charging = false
+	if power>0.0: hit_target(locked_target,locked_point,power)
+	locked_target = -1
+
+func charge_level() -> float:
+	if not charging or elapsed-charge_start<CHARGE_MIN: return 0.0
+	return lerpf(0.35,1.0,clampf(inverse_lerp(CHARGE_MIN,CHARGE_FULL,elapsed-charge_start),0,1))
+
+func selected_target() -> int:
+	if charging: return locked_target
+	return valid_target(target_id)
+
+func action_position(id: int,point: Vector3) -> Vector3:
+	var distance := 0.9
+	if id>=0: distance = objects[id].size.z*0.5+1.05
+	return Vector3(point.x,0,minf(7.2,point.z+distance))
+
+func face_target(point: Vector3) -> void:
+	var look := point-avatar.position
+	if look.length_squared()>0.01: avatar.rotation.y = atan2(look.x,look.z)
 
 func project_to_screen(pos: Vector3) -> Vector2:
 	return VIEW_RECT.position+camera.unproject_position(pos)/Vector2(view.size)*VIEW_RECT.size
 
-func beat_lighting(clock: float) -> Dictionary:
-	var judged: float = clock-h.offset_ms/1000.0
-	var previous := floorf(judged/BEAT)*BEAT
-	var next := previous+BEAT
-	for upbeat in upbeats:
-		if upbeat<=previous or upbeat>=next: continue
-		if judged<upbeat: next = upbeat
-		else: previous = upbeat
-		break
-	var since := judged-previous
-	var light_level := 1.0-clampf(since/0.11,0,1)
-	var distance_left := 1.0-clampf((since-0.09)/(next-previous-0.09),0,1)
-	if since<0.09: distance_left = 0
-	return {"distance":distance_left,"light":light_level}
-
-func update_floor_markers(selected: int,clock: float) -> void:
+func update_floor_markers(selected: int) -> void:
 	var active: bool = h.screen=="combat_play"
-	indicator.visible = active
-	target_light.visible = active
-	for arrow in beat_arrows: arrow.visible = active
+	indicator.visible = active and selected>=0
+	target_light.visible = indicator.visible
 	if not active: return
-	var timing := beat_lighting(clock)
-	var center := avatar.position+Vector3(0,0,-0.65)
-	var half_size := Vector2(0.58,0.58)
-	var surface_height := 0.0
-	if selected>=0:
-		var item: Dictionary = objects[selected]
-		center = item.pos
-		half_size = Vector2(item.size.x,item.size.z)*0.5+Vector2.ONE*0.32
-		surface_height = item.size.y
+	var fill := clampf((elapsed-charge_start)/CHARGE_FULL,0,1) if charging else 0.0
+	var tint := MINT.lerp(GOLD,fill)
+	hammer_light.emission = tint
+	hammer_light.emission_energy_multiplier = 0.35+fill*1.3
+	hammer.rotation.x = punch*1.5-fill*0.85
+	if not indicator.visible: return
+	var item: Dictionary = objects[selected]
+	var center: Vector3 = item.pos
 	center.y = 0.083
-	arrow_light.albedo_color = Color("45bdaf").lerp(Color("ecffcb"),timing.light)
+	var half_size := Vector2(item.size.x,item.size.z)*0.5+Vector2.ONE*0.30
+	marker_material.albedo_color = tint
 	for index in range(FLOOR_MARKERS.size()):
 		var axis: Vector2 = FLOOR_MARKERS[index]
 		var corner := center+Vector3(axis.x*half_size.x,0,axis.y*half_size.y)
-		var trail := corner+Vector3(axis.x,0,axis.y)*float(timing.distance)*0.90
-		var landing: MeshInstance3D = indicator.get_child(index)
-		landing.position = corner.clamp(Vector3(-12.04,0.083,-6.96),Vector3(12.26,0.083,7.31))
-		beat_arrows[index].position = trail.clamp(Vector3(-12.04,0.088,-6.96),Vector3(12.26,0.088,7.31))
-	target_light.position = center+Vector3(0,surface_height*0.55+0.8,half_size.y+0.36)
-	target_light.light_color = MINT
-	target_light.omni_range = 2.5+surface_height*0.45
-	var brightness: float = timing.light
-	target_light.light_energy = 0.10+0.82*brightness
-	marquee_light.emission_energy_multiplier = 0.28+0.94*brightness
-	hammer_light.emission = MINT
-	hammer_light.emission_energy_multiplier = 0.65*brightness
-	var windup: float = (1.0-float(timing.distance))*0.31*(1.0-brightness)
-	var charged_windup := 0.52*clampf((clock-charge_start)/0.28,0,1) if charging else 0.0
-	hammer.rotation.x = punch*1.4-windup-charged_windup
+		indicator.get_child(index).position = corner.clamp(Vector3(-12.04,0.083,-6.96),Vector3(12.26,0.083,7.31))
+	target_light.position = center+Vector3(0,item.size.y*0.55+0.8,half_size.y+0.36)
+	target_light.light_color = tint
+	target_light.omni_range = 2.5+item.size.y*0.45
+	target_light.light_energy = 0.28+fill*0.78
 
 func meshes_below(node: Node) -> Array:
 	var found: Array = []
@@ -469,85 +416,117 @@ func launch_piece(part: MeshInstance3D,force: float) -> void:
 		var old: Dictionary = physical.pop_front()
 		if is_instance_valid(old.body): old.body.queue_free()
 
-func apply_smash(id: int,kind: String,on_beat: bool) -> void:
+func hit_target(id: int,point: Vector3,power: float) -> void:
+	var heavy := power>0.0
 	total_smashes += 1
-	if kind=="heavy": heavy_hits += 1
-	id = valid_target(id)
+	if heavy: heavy_hits += 1
 	impact_target = id
-	var heavy := kind=="heavy"
 	impact_time = 0.27
-	impact_strength = 1.35 if heavy else (1.0 if on_beat else 0.56)
-	punch = 1
-	shake = maxf(shake,13 if heavy and on_beat else (7 if on_beat else 2))
-	if id<0:
-		hit3d = avatar.position+Vector3(0,0.2,1)
-		for entry in physical:
-			if is_instance_valid(entry.body) and entry.body.position.distance_to(hit3d)<5:
-				entry.body.freeze = false
-				entry.body.apply_central_impulse(Vector3(randf_range(-3,3),5,randf_range(-3,3)))
-		make_wave(hit3d,heavy)
-		demo_sounds.thump.play()
-		say("清场！把残骸再震飞",GOLD,0.5)
+	impact_strength = 0.85+power*0.8
+	punch = 1.0
+	shake = maxf(shake,3.5+power*9.0)
+	hit3d = point
+	impact_label_time = 0.0
+	slap_flash = 0.0
+	if id<0 or not objects[id].alive:
+		if heavy:
+			kick_debris(point,2.0+power*2.2,4.0+power*5.0)
+			make_wave(point,true)
+			demo_sounds.thump.play()
 		return
 	var item: Dictionary = objects[id]
-	hit3d = item.pos+Vector3(0,item.size.y*0.55,0)
+	hit3d = item.pos+Vector3.UP*item.size.y*0.55
 	if item.kind=="dummy":
-		hit3d.y = item.pos.y+item.size.y*0.82
-		slaps += 1
-		item.slap = 1
-		slap_flash = 1
-		palm.position = hit3d+Vector3(0.45,0,0.4)
-		demo_sounds.slap.play()
-		say("啪！"+item.title+"，消停点！",GOLD,0.55)
-	else:
-		demo_sounds[item.material].play()
-		if on_beat: demo_sounds.thump.play()
-		say("整 片 震 碎！" if heavy else ("砸 中 重 拍！" if on_beat else "尽管砸，跟底鼓更带劲"),GOLD if on_beat else h.MUTED,0.4)
-	var damage := (6.2 if heavy else 2.6) if on_beat else (2.8 if heavy else 0.65)
-	damage_object(id,damage,heavy or on_beat)
-	if on_beat or heavy:
-		make_wave(hit3d,heavy)
-	if heavy or (on_beat and streak%4==0):
-		var neighbors: Array = []
-		for item2 in objects:
-			if item2.alive and item2.id!=id and item2.kind!="dummy" and item2.pos.distance_to(item.pos)<(3.7 if heavy else 2.8): neighbors.append(item2.id)
-		for neighbor in neighbors:
-			chain_hits += 1
-			damage_object(neighbor,2.4 if heavy and on_beat else 1.0,true)
+		slap_character(item,power)
+		return
+	demo_sounds[item.material].play()
+	if heavy:
+		demo_sounds.thump.play()
+		kick_debris(point,2.0+power*2.2,4.0+power*5.0)
+		make_wave(point,true)
+	var shattered := damage_prop(id,3.4 if not heavy else lerpf(6.5,16.0,power),heavy)
+	if shattered:
+		match item.kind:
+			"arcade":
+				if bump_arcade(id): announce("街机连锁！")
+			"vending":
+				kick_debris(point,3.3,5.0)
+				make_wave(point,true)
+				announce("汽水喷泉！")
+			"safe":
+				if item.title.is_empty():
+					kick_debris(point,4.5,8.0)
+					announce("保险柜开了！")
+	if impact_label_time==0.0 and heavy: announce("轰！")
 	target_id = valid_target(target_id)
 
-func damage_object(id: int,damage: float,explosive: bool) -> void:
+func announce(label: String) -> void:
+	impact_label = label
+	impact_label_time = 0.66
+
+func slap_character(item: Dictionary,power: float) -> void:
+	hit3d.y = item.pos.y+item.size.y*0.79
+	slaps += 1
+	item.slap = 1.0
+	item.slap_side = -item.slap_side
+	item.slap_power = power
+	slapped_target = item.id
+	slap_flash = 1.0
+	demo_sounds.slap.play()
+
+func kick_debris(center: Vector3,radius: float,force: float) -> void:
+	for entry in physical:
+		var body: RigidBody3D = entry.body
+		if not is_instance_valid(body) or body.is_queued_for_deletion(): continue
+		var away := body.position-center
+		away.y = 0.0
+		var distance := away.length()
+		if distance>=radius: continue
+		body.sleeping = false
+		entry.age = 0.0
+		body.apply_central_impulse((away.normalized()*0.8+Vector3.UP)*body.mass*force*(1.0-distance/radius))
+
+func bump_arcade(id: int) -> bool:
+	var source: Dictionary = objects[id]
+	var next := -1
+	var closest := 2.3
+	for item in objects:
+		if item.kind!="arcade" or not item.alive: continue
+		var distance: float = source.pos.distance_to(item.pos)
+		if distance<closest:
+			closest = distance
+			next = item.id
+	if next<0: return false
+	chain_hits += 1
+	make_wave(objects[next].pos,false)
+	damage_prop(next,4.5,true)
+	return true
+
+func damage_prop(id: int,damage: float,explosive: bool) -> bool:
 	var item: Dictionary = objects[id]
-	if not item.alive: return
-	var effective := minf(item.hp,damage)
+	if not item.alive or item.kind=="dummy": return false
 	item.hp = maxf(0,item.hp-damage)
-	item.flash = 1
-	score += int(effective*25)
-	if item.kind=="dummy":
-		if item.hp<=0:
-			item.alive = false
-			broken += 1
-			item.collider.queue_free()
-			spawn_loot(item.pos+Vector3.UP*1.5,item.value)
-		return
+	item.flash = 1.0
 	var parts := meshes_below(item.visual)
 	if item.hp>0:
-		if parts.size()>3: launch_piece(parts[parts.size()-1],2.5 if explosive else 1.2)
-		# Shelves/safe expose a real new cash box instead of regenerating themselves.
+		if parts.size()>3: launch_piece(parts.back(),2.5 if explosive else 1.2)
 		if item.kind in ["safe","shelf","cabinet"] and item.title!="现金盒" and not item.revealed and item.hp<=item.maxhp*0.5:
 			item.revealed = true
 			crates_revealed += 1
 			var location: Vector3 = item.pos+Vector3(0,0,item.size.z*0.8+0.45)
 			add_prop("safe",location,Vector3(0.65,0.65,0.65),4.5,"metal",160,"现金盒")
 			spawn_loot(location+Vector3.UP,25)
-		return
+		return false
 	item.alive = false
 	broken += 1
 	if item.kind=="wall": wall_breaks += 1
-	score += 150
 	item.collider.queue_free()
-	for part in parts: launch_piece(part,4.2 if explosive else 2.4)
+	for part: MeshInstance3D in parts:
+		var force := 4.2 if explosive else 2.4
+		if item.kind=="vending" and str(part.name).ends_with("Can"): force = 7.5
+		launch_piece(part,force)
 	spawn_loot(item.pos+Vector3.UP*minf(1.5,item.size.y),item.value)
+	return true
 
 func spawn_loot(pos: Vector3,value: int) -> void:
 	var count := clampi(int(ceil(value/40.0)),2,8)
@@ -585,32 +564,20 @@ func update(delta: float) -> void:
 	var mode := SubViewport.UPDATE_DISABLED
 	if h.screen in ["combat_intro","combat_play"]: mode = SubViewport.UPDATE_ALWAYS
 	view.render_target_update_mode = mode
-	if not h.screen.begins_with("combat") or h.screen=="combat_pause": return
-	pulse = maxf(0,pulse-delta*5)
+	if h.screen!="combat_play": return
+	elapsed += delta
 	punch = maxf(0,punch-delta*6)
 	shake = maxf(0,shake-delta*30)
-	press_flash = maxf(0,press_flash-delta*6)
 	slap_flash = maxf(0,slap_flash-delta*5)
-	feedback_timer = maxf(0,feedback_timer-delta)
-	guide_label_time = maxf(0,guide_label_time-delta)
+	impact_label_time = maxf(0,impact_label_time-delta)
 	impact_time = maxf(0,impact_time-delta)
-	if h.screen=="combat_play":
-		elapsed = now()
-		var current_beat := int(floor((elapsed-INTRO)/BEAT))
-		if current_beat!=beat:
-			beat = current_beat
-			pulse = 1
-		resolve_cues()
 	for item in objects:
 		item.flash = maxf(0,item.flash-delta*5)
 		if item.kind=="dummy":
-			item.slap = maxf(0,item.slap-delta*2.8)
-			item.visual.rotation.z = sin(item.slap*12)*item.slap*0.26
-			item.visual.rotation.y = item.slap*TAU if not item.alive else sin(item.slap*10)*item.slap*0.35
-			var head: Node3D = item.visual.get_node_or_null("Head")
-			if head: head.rotation.z = item.slap*0.45
+			update_character(item,delta)
 		else:
 			item.visual.rotation.z = sin(h.anim*30)*item.flash*0.045
+
 	for entry in physical:
 		if not is_instance_valid(entry.body): continue
 		entry.age += delta
@@ -635,41 +602,72 @@ func update(delta: float) -> void:
 		ring.node.material_override.albedo_color.a = clampf(1.0-ring.age/0.35,0,1)
 		if ring.age>0.35: ring.node.queue_free()
 	waves3d = waves3d.filter(func(ring): return is_instance_valid(ring.node) and not ring.node.is_queued_for_deletion())
-	var selected := valid_target(locked_target if charging else target_id)
-	if impact_time>0.15: selected = impact_target
-	if selected>=0:
-		var item: Dictionary = objects[selected]
-		var destination: Vector3 = item.pos+Vector3(0,0,item.size.z*0.5+1.05)
-		avatar.position = avatar.position.lerp(destination,1-exp(-delta*16))
-		var look: Vector3 = item.pos-avatar.position
-		if look.length_squared()>0.01: avatar.rotation.y = atan2(look.x,look.z)
-	hammer.visible = selected<0 or objects[selected].kind!="dummy"
-	update_floor_markers(selected,elapsed)
+	var selected := selected_target()
+	var actor_target := impact_target if impact_time>0.15 else selected
+	if actor_target>=0:
+		var point: Vector3 = objects[actor_target].pos
+		var destination := action_position(actor_target,point)
+		avatar.position = avatar.position.lerp(destination,1-exp(-delta*19))
+		face_target(point)
+	elif charging or impact_time>0.0:
+		var destination := action_position(-1,locked_point)
+		avatar.position = avatar.position.lerp(destination,1-exp(-delta*19))
+		face_target(locked_point)
+	hammer.visible = actor_target<0 or objects[actor_target].kind!="dummy"
+	update_floor_markers(selected)
 	palm.visible = slap_flash>0
 	if palm.visible:
-		palm.position = hit3d+Vector3((1-slap_flash)*0.6,0,0.2)
-		palm.rotation.y = slap_flash*2
+		var side: float = objects[slapped_target].slap_side
+		palm.position = hit3d+Vector3((1-slap_flash)*0.65*side,0,0.24)
+		palm.rotation.y = slap_flash*2*side
 	camera.position = base_camera+Vector3(sin(h.anim*83),cos(h.anim*91),0)*shake*0.018
-	if h.screen=="combat_play" and elapsed>=PLAY_END: finish(true)
+
+func update_character(item: Dictionary,delta: float) -> void:
+	if item.slap<=0: return
+	item.slap = maxf(0,item.slap-delta*lerpf(2.9,1.55,item.slap_power))
+	var life: float = item.slap
+	var side: float = item.slap_side
+	var strength: float = 1.0+item.slap_power*0.65
+	var recoil := cos((1.0-life)*13.0)*life*side*strength
+	var head: Node3D = item.visual.get_node("Head")
+	head.rotation.z = recoil*0.46
+	item.visual.rotation.z = recoil*0.19
+	match item.variant:
+		0:
+			var turn := TAU*smoothstep(0.0,1.0,1.0-life)*side
+			item.visual.rotation.y = turn if item.slap_power>0.25 and life>0 else recoil*0.44
+		1:
+			item.visual.position.y = item.pos.y+sin(life*PI)*0.52*strength
+		2:
+			head.rotation.y = sin((1.0-life)*29.0)*life*0.62*strength
+			item.visual.get_node("LeftArm").rotation.z = recoil*1.1
+			item.visual.get_node("RightArm").rotation.z = -recoil*1.1
 
 func pointer_down(point: Vector2,source: String) -> void:
 	for button in h.buttons:
 		if button.rect.has_point(point):
 			action(button.id)
 			return
-	if h.screen=="combat_play" and VIEW_RECT.has_point(point) and not charging:
-		var pixel := (point-VIEW_RECT.position)/VIEW_RECT.size*Vector2(view.size)
-		var origin := camera.project_ray_origin(pixel)
-		var direction := camera.project_ray_normal(pixel)
-		var best := INF
-		for item in objects:
-			if not item.alive: continue
-			var bounds := AABB(item.pos-Vector3(item.size.x*0.5,0,item.size.z*0.5),item.size)
-			var crossing = bounds.intersects_ray(origin,direction)
-			if crossing is Vector3 and origin.distance_to(crossing)<best:
-				best = origin.distance_to(crossing)
-				target_id = item.id
-	press(source)
+	if h.screen!="combat_play" or not VIEW_RECT.has_point(point) or charging: return
+	var pixel := (point-VIEW_RECT.position)/VIEW_RECT.size*Vector2(view.size)
+	var origin := camera.project_ray_origin(pixel)
+	var direction := camera.project_ray_normal(pixel)
+	var best := INF
+	var id := -1
+	for item in objects:
+		if not item.alive: continue
+		var bounds := AABB(item.pos-Vector3(item.size.x*0.5,0,item.size.z*0.5),item.size)
+		var crossing = bounds.intersects_ray(origin,direction)
+		if crossing is Vector3 and origin.distance_to(crossing)<best:
+			best = origin.distance_to(crossing)
+			id = item.id
+	if id>=0:
+		target_id = id
+		begin_hit(source,id,objects[id].pos)
+		return
+	var ground = Plane(Vector3.UP,0.0).intersects_ray(origin,direction)
+	if ground is Vector3 and absf(ground.x)<12.4 and absf(ground.z)<7.4:
+		begin_hit(source,-1,ground)
 
 func freeze_bodies(frozen: bool) -> void:
 	for entry in physical:
@@ -688,12 +686,10 @@ func pause_game() -> void:
 	if h.screen!="combat_play": return
 	freeze_bodies(true)
 	super.pause_game()
-	beat_guide.stream_paused = true
 
 func resume_game() -> void:
 	if h.screen!="combat_pause": return
 	super.resume_game()
-	beat_guide.stream_paused = false
 	freeze_bodies(false)
 
 func action(id: String) -> void:
@@ -701,6 +697,8 @@ func action(id: String) -> void:
 		if h.screen!="combat_intro":
 			show_intro()
 			build_shop()
+	elif id=="combat_finish" and h.screen=="combat_play":
+		finish(true)
 	elif id!="mode":
 		super.action(id)
 
@@ -715,19 +713,27 @@ func finish(_success: bool) -> void:
 	won = true
 	h.screen = "combat_result"
 	stop()
-	var key := "wreck3d_"+("easy" if h.easy else "normal")
-	if score+cash>int(h.records.get(key,0)): h.records[key] = score+cash
+	var key := "wreck3d_free"
+	if cash>int(h.records.get(key,0)): h.records[key] = cash
 	h.save_data()
 
+func named_target() -> int:
+	if slapped_target>=0 and objects[slapped_target].slap>0.0: return slapped_target
+	var selected := selected_target()
+	if selected>=0 and objects[selected].kind=="dummy": return selected
+	return -1
+
 func state() -> Dictionary:
-	var chart: Array = []
 	var props: Array = []
-	for cue in cues: chart.append({"time":cue.time,"beat":cue.beat,"type":cue.type,"status":cue.status})
 	for item in objects:
-		var point := camera.unproject_position(item.pos+Vector3.UP*item.size.y*0.5)
-		var screen: Vector2 = VIEW_RECT.position+point/Vector2(view.size)*VIEW_RECT.size
+		var screen := project_to_screen(item.pos+Vector3.UP*item.size.y*0.5)
 		props.append({"id":item.id,"kind":item.kind,"alive":item.alive,"hp":item.hp,"x":screen.x,"y":screen.y,"title":item.title})
-	return {"mode":"wreck3d","elapsed":elapsed,"duration":PLAY_END,"beat":beat,"score":score,"cash":cash,"looted":looted,"slaps":slaps,"resolved":resolved,"missed":missed,"streak":streak,"maxStreak":max_streak,"heavyHits":heavy_hits,"weakHits":weak_hits,"broken":broken,"walls":wall_breaks,"chainHits":chain_hits,"destruction":destruction(),"charging":charging,"target":target_id,"won":won,"debris":physical.size(),"revealed":crates_revealed,"shopIdentity":shop_identity,"cues":chart,"objects":props,"worldMeshes":stage.find_children("*","MeshInstance3D",true,false).size(),"beatGuide":beat_lighting(elapsed),"judgement":guide_label if guide_label_time>0 else ""}
+	var named := named_target()
+	return {"mode":"wreck3d","elapsed":elapsed,"cash":cash,"looted":looted,"slaps":slaps,"heavyHits":heavy_hits,
+		"hits":total_smashes,"broken":broken,"walls":wall_breaks,"chainHits":chain_hits,"destruction":destruction(),
+		"charging":charging,"charge":charge_level(),"target":target_id,"won":won,"debris":physical.size(),"revealed":crates_revealed,
+		"shopIdentity":shop_identity,"objects":props,"worldMeshes":stage.find_children("*","MeshInstance3D",true,false).size(),
+		"nameTag":objects[named].title if named>=0 else ""}
 
 func draw_view() -> void:
 	h.draw_texture_rect(view.get_texture(),VIEW_RECT,false)
@@ -754,7 +760,7 @@ func draw_impact() -> void:
 
 func draw_intro() -> void:
 	h.draw_rect(Rect2(0,0,1440,900),Color("1c162e"))
-	h.center("节拍拆迁王",Vector2(720,135),72,PEACH)
+	h.center("商场拆迁王",Vector2(720,135),72,PEACH)
 	var preview := Rect2(209,183,1022,521)
 	h.draw_texture_rect(view.get_texture(),preview,false)
 	h.rounded(preview,Color.TRANSPARENT,21,Color("63506e"))
@@ -762,32 +768,41 @@ func draw_intro() -> void:
 
 func draw_game() -> void:
 	h.draw_rect(Rect2(0,0,1440,900),Color("1c162e"))
-	h.brand()
-	h.button("sound",Rect2(1120,28,115,44),"静音" if h.muted else "声音 开",false,true)
-	h.button("combat_pause",Rect2(1250,28,142,44),"Ⅱ 暂停",false,true)
-	h.rounded(Rect2(48,91,1344,4),h.LINE,2)
-	h.rounded(Rect2(48,91,1344*clampf((elapsed-INTRO)/48,0,1),4),GOLD,2)
-	h.text("午夜百货",Vector2(52,142),24,PEACH)
-	h.center("战利品 ¥%d" % cash,Vector2(741,142),26,GOLD)
-	h.text("%02d 秒" % int(ceil(maxf(0,PLAY_END-maxf(INTRO,elapsed)))),Vector2(1270,142),22,h.MUTED)
+	h.text("午夜百货",Vector2(48,65),34,PEACH)
+	h.button("sound",Rect2(1016,28,104,44),"静音" if h.muted else "声音 开",false,true)
+	h.button("combat_pause",Rect2(1134,28,108,44),"Ⅱ 暂停",false,true)
+	h.button("combat_finish",Rect2(1256,28,136,44),"收工",true,true)
+	h.rounded(Rect2(48,91,1344,3),h.LINE,2)
+	h.text("砸碎 %d 件" % broken,Vector2(52,134),22,PEACH)
+	h.text("战利品 ¥%d" % cash,Vector2(224,134),22,GOLD)
+	h.text("巴掌 %d 下" % slaps,Vector2(434,134),22,PEACH)
 	draw_view()
 	draw_impact()
-	var selected := valid_target(locked_target if charging else target_id)
-	if guide_label_time<=0 and selected>=0 and objects[selected].kind=="dummy":
-		var item: Dictionary = objects[selected]
-		var label := project_to_screen(item.pos+Vector3.UP*item.size.y)+Vector2(81,-17)
-		h.rounded(Rect2(label+Vector2(-65,-22),Vector2(130,31)),PANEL_DARK,11)
+	var named := named_target()
+	if named>=0:
+		var item: Dictionary = objects[named]
+		var label := project_to_screen(item.visual.position+Vector3.UP*(item.size.y+0.18))
+		label = label.clamp(VIEW_RECT.position+Vector2(70,28),VIEW_RECT.end-Vector2(70,12))
+		h.rounded(Rect2(label+Vector2(-65,-22),Vector2(130,30)),PANEL_DARK,10)
 		h.center(item.title,label,17,PEACH)
-	if slap_flash>0.25:
-		h.center("啪！",project_to_screen(hit3d+Vector3.UP*0.4)+Vector2(62,60),36,GOLD)
-	if guide_label_time>0 and elapsed>=INTRO:
-		var label_position := project_to_screen(guide_anchor)
-		label_position = label_position.clamp(VIEW_RECT.position+Vector2(88,31),VIEW_RECT.end-Vector2(88,16))
-		h.rounded(Rect2(label_position-Vector2(78,25),Vector2(156,33)),PANEL_DARK,10)
-		h.center(guide_label,label_position,18,guide_color)
-	var instruction := "地面光带合拢时，按空格或点目标 · 按住再松手重砸"
-	if elapsed<INTRO: instruction = "听四拍准备 · "+instruction
-	h.center(instruction,Vector2(720,881),18,h.MUTED)
+	if slap_flash>0.18:
+		var offset := Vector2(75*objects[slapped_target].slap_side,34)
+		var label := project_to_screen(hit3d)+offset
+		label = label.clamp(VIEW_RECT.position+Vector2(44,46),VIEW_RECT.end-Vector2(44,16))
+		h.center("啪！",label,38,GOLD)
+	if impact_label_time>0.0:
+		var label := project_to_screen(hit3d)+Vector2(55,-60-(0.66-impact_label_time)*25)
+		label = label.clamp(VIEW_RECT.position+Vector2(96,40),VIEW_RECT.end-Vector2(96,16))
+		h.rounded(Rect2(label-Vector2(88,28),Vector2(176,36)),PANEL_DARK,10)
+		h.center(impact_label,label,23,GOLD)
+	if charging:
+		var fill := clampf((elapsed-charge_start)/CHARGE_FULL,0,1)
+		var anchor := project_to_screen(locked_point)+Vector2(0,34)
+		anchor = anchor.clamp(VIEW_RECT.position+Vector2(48,20),VIEW_RECT.end-Vector2(48,14))
+		h.rounded(Rect2(anchor-Vector2(42,6),Vector2(84,12)),PANEL_DARK,6)
+		if fill>0.0:
+			h.rounded(Rect2(anchor-Vector2(39,3),Vector2(78*fill,6)),MINT if fill<1.0 else GOLD,3)
+	h.center("点击目标或按空格出手 · 按住蓄力，松手重击",Vector2(720,881),18,h.MUTED)
 
 func draw_pause() -> void:
 	h.draw_rect(Rect2(0,0,1440,900),Color(0.02,0.03,0.05,0.9))
@@ -803,10 +818,10 @@ func draw_result() -> void:
 	h.draw_rect(Rect2(0,0,1440,900),Color(0.02,0.03,0.05,0.92))
 	h.buttons.clear()
 	h.rounded(Rect2(290,175,860,565),h.PANEL,28,GOLD)
-	h.center("商场拆了，压力散了。",Vector2(720,258),41,GOLD)
+	h.center("打砸收工",Vector2(720,258),41,GOLD)
 	h.center("¥ %d" % cash,Vector2(720,355),64,GOLD)
 	h.center("砸碎 %d 件 · 连锁 %d 次 · 巴掌 %d 下" % [broken,chain_hits,slaps],Vector2(720,426),25,AQUA)
 	h.center("重砸 %d 次 · 揭开 %d 个暗格 · 破坏率 %d%%" % [heavy_hits,crates_revealed,int(destruction()*100)],Vector2(720,478),22)
-	h.center("接上 %d / %d 拍 · 最长 %d 连拍 · 拆迁得分 %d" % [resolved,cues.size(),max_streak,score],Vector2(720,532),19,h.MUTED)
+	h.center("本次打砸 %d 分 %02d 秒" % [int(elapsed)/60,int(elapsed)%60],Vector2(720,532),19,h.MUTED)
 	h.button("combat_start",Rect2(415,621,300,67),"再砸一遍！",true)
 	h.button("combat_menu",Rect2(740,621,280,67),"返回首页")

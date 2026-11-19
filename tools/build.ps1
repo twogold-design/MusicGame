@@ -32,7 +32,7 @@ if ($total -ge 200000000) { throw 'Uncompressed package must be less than 200 MB
 Compress-Archive -Path 'build\web\*' -DestinationPath 'dist\MeowBeat-Web.zip' -Force -CompressionLevel Optimal
 $zipBytes = (Get-Item 'dist\MeowBeat-Web.zip').Length
 if ($zipBytes -ge 200000000) { throw 'ZIP must be less than 200 MB' }
-[ordered]@{game='喵喵打碟俱乐部';engine='Godot 4.7.2';entry='index.html';web_bytes=$total;zip_bytes=$zipBytes;limit_bytes=200000000;files=@($files | ForEach-Object { @{name=$_.Name;bytes=$_.Length;sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash} })} | ConvertTo-Json -Depth 5 | Set-Content 'dist\manifest.json' -Encoding UTF8
+[ordered]@{game='商场拆迁王';engine='Godot 4.7.2';entry='index.html';web_bytes=$total;zip_bytes=$zipBytes;limit_bytes=200000000;files=@($files | ForEach-Object { @{name=$_.Name;bytes=$_.Length;sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash} })} | ConvertTo-Json -Depth 5 | Set-Content 'dist\manifest.json' -Encoding UTF8
 Write-Output ('Web {0:N2} MB / ZIP {1:N2} MB' -f ($total/1000000),($zipBytes/1000000))
 if ($UpdatePreview) {
     $previewPath = Join-Path $projectRoot 'preview'
