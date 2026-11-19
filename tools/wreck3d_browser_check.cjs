@@ -7,7 +7,7 @@ const server=http.createServer((req,res)=>{const file=path.join(web,new URL(req.
  const page=await context.newPage(),errors=[],external=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!m.text().includes('404'))errors.push(m.text());});page.on('request',r=>{if(/^https?:/.test(r.url())&&!r.url().includes('127.0.0.1'))external.push(r.url());});
  const screen=s=>page.waitForFunction(s=>window.meowState?.screen===s,s,{timeout:90000});
  const at=t=>page.waitForFunction(t=>window.meowState?.screen!=='combat_play'||window.meowState.combat.elapsed+(performance.now()-window.meowState.stamp)/1000>=t,t,{timeout:15000});
- await page.goto(process.env.WRECK3D_ENTRY||pathToFileURL(path.join(root,'index.html')).href);await screen('combat_intro');await page.screenshot({path:path.join(root,'artifacts/wreck3d-intro.png')});
+ await page.goto(process.env.WRECK3D_ENTRY||pathToFileURL(path.join(web,'index.html')).href);await screen('combat_intro');await page.screenshot({path:path.join(root,'artifacts/wreck3d-intro.png')});
  if(!(await page.evaluate(()=>window.meowState.easy))){await page.mouse.click(930,770);await page.waitForTimeout(150);}
  await page.keyboard.press('Enter');await screen('combat_play');await page.waitForTimeout(180);
  const first=await page.evaluate(()=>window.meowState.combat);assert.equal(first.mode,'wreck3d');assert.equal(first.cues.length,102);assert(first.worldMeshes>200);const identity=first.shopIdentity,chart=first.cues;

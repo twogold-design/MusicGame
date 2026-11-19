@@ -20,7 +20,9 @@ ESC暂停，Enter开始/继续，切后台自动暂停音乐、钱币和碎片�
 
 ## 试玩与比赛包
 
-导出后双击 `开始游戏.cmd`，或在 Chrome／Edge 中打开 `index.html`。比赛包是 `dist/MeowBeat-Web.zip`，解压后根目录含 `index.html`，可以离线运行，也可以把包内文件部署到静态网站。
+克隆或完整解压 GitHub 的源码 ZIP 后，用 Chrome／Edge 打开根目录的 `index.html` 即可离线试玩。仓库中的 `preview/` 包含所需的完整网页试玩版。开发者要玩自己刚导出的版本，可以打开 `build/web/index.html` 或双击 `开始游戏.cmd`。
+
+比赛包是构建生成的 `dist/MeowBeat-Web.zip`。解压后根目录含 `index.html`，可以离线运行，也可以把包内文件部署到静态网站。
 
 压缩和解压均由构建脚本强制小于200,000,000字节，大小和SHA256见dist/manifest.json。规则参考BadmintonAce已有交付约束，未获得完整官方比赛规则。
 
@@ -41,7 +43,9 @@ Windows 下可双击 `打开Godot编辑器.cmd`。若 `godot` 不在 PATH，可�
 .\tools\build.ps1
 ```
 
-协作时从 `main` 创建功能分支，通过 Pull Request 合并。提交源码、场景、素材，以及对应的 Godot `.uid` 和 `.import` 文件。构建输出、缓存、本地存档和浏览器测试产物由各自的环境生成。
+需要刷新随仓库发布的试玩版时，运行 `./tools/build.ps1 -UpdatePreview` 并提交 `preview/` 的改动。
+
+协作时从 `main` 创建功能分支，通过 Pull Request 合并。提交源码、场景、素材，以及对应的 Godot `.uid` 和 `.import` 文件。常规构建输出、缓存、本地存档和浏览器测试产物由各自的环境生成。
 
 ## 源码与验证
 

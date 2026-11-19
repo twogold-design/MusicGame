@@ -1,3 +1,5 @@
+param([switch]$UpdatePreview)
+
 . (Join-Path $PSScriptRoot 'environment.ps1')
 if (-not (Get-Command $godot -ErrorAction SilentlyContinue)) {
     throw 'Godot 4.7.2 was not found. Set GODOT_BIN to its executable or put godot on PATH.'
@@ -32,3 +34,11 @@ $zipBytes = (Get-Item 'dist\MeowBeat-Web.zip').Length
 if ($zipBytes -ge 200000000) { throw 'ZIP must be less than 200 MB' }
 [ordered]@{game='喵喵打碟俱乐部';engine='Godot 4.7.2';entry='index.html';web_bytes=$total;zip_bytes=$zipBytes;limit_bytes=200000000;files=@($files | ForEach-Object { @{name=$_.Name;bytes=$_.Length;sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash} })} | ConvertTo-Json -Depth 5 | Set-Content 'dist\manifest.json' -Encoding UTF8
 Write-Output ('Web {0:N2} MB / ZIP {1:N2} MB' -f ($total/1000000),($zipBytes/1000000))
+if ($UpdatePreview) {
+    $previewPath = Join-Path $projectRoot 'preview'
+    New-Item -ItemType Directory -Force -Path $previewPath | Out-Null
+    foreach ($webFile in $files) {
+        Copy-Item -LiteralPath $webFile.FullName -Destination $previewPath -Force
+    }
+    Write-Output 'Updated the checked-in browser preview.'
+}
