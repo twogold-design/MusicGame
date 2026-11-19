@@ -8,7 +8,6 @@ const server=http.createServer((req,res)=>{const file=path.join(web,new URL(req.
  const screen=s=>page.waitForFunction(s=>window.meowState?.screen===s,s,{timeout:90000});
  const at=t=>page.waitForFunction(t=>window.meowState?.screen!=='combat_play'||window.meowState.combat.elapsed+(performance.now()-window.meowState.stamp)/1000>=t,t,{timeout:15000});
  await page.goto(process.env.WRECK3D_ENTRY||pathToFileURL(path.join(web,'index.html')).href);await screen('combat_intro');await page.screenshot({path:path.join(root,'artifacts/wreck3d-intro.png')});
- if(!(await page.evaluate(()=>window.meowState.easy))){await page.mouse.click(930,770);await page.waitForTimeout(150);}
  await page.keyboard.press('Enter');await screen('combat_play');await page.waitForTimeout(180);
  const first=await page.evaluate(()=>window.meowState.combat);assert.equal(first.mode,'wreck3d');assert.equal(first.cues.length,102);assert(first.worldMeshes>200);const identity=first.shopIdentity,chart=first.cues;
  await page.screenshot({path:path.join(root,'artifacts/wreck3d-before.png')});let held=false;const identities=new Set([identity]);
@@ -25,7 +24,8 @@ const server=http.createServer((req,res)=>{const file=path.join(web,new URL(req.
  await screen('combat_result');const result=await page.evaluate(()=>window.meowState.combat);await page.screenshot({path:path.join(root,'artifacts/wreck3d-result.png')});console.log('RESULT',JSON.stringify({...result,cues:undefined,objects:undefined}));
  assert(result.won);assert.equal(identities.size,1);assert.equal(result.resolved,102);assert.equal(result.missed,0);assert(result.cash>100);assert(result.slaps>=3);assert(result.broken>=12);assert(result.debris>30);assert(result.heavyHits>=8);assert(result.revealed>=1);
  // Direct touch targets the same 3D character, and a hold-release needs no extra key.
- await page.mouse.click(550,650);await screen('combat_play');await page.waitForTimeout(150);const dummy=(await page.evaluate(()=>window.meowState.combat.objects)).find(o=>o.kind==='dummy'&&o.alive);
+ await page.mouse.click(870,650);await screen('combat_intro');
+ await page.mouse.click(720,768);await screen('combat_play');await page.waitForTimeout(150);const dummy=(await page.evaluate(()=>window.meowState.combat.objects)).find(o=>o.kind==='dummy'&&o.alive);
  await at(1.925);await page.touchscreen.tap(dummy.x,dummy.y);await at(2.2);assert.equal(await page.evaluate(()=>window.meowState.combat.slaps),1);
  await at(2.925);const cdp=await context.newCDPSession(page);await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:710,y:820,id:0}]});await at(3.425);await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await at(3.7);assert.equal(await page.evaluate(()=>window.meowState.combat.heavyHits),1);
  await new Promise(r=>server.listen(8835,'127.0.0.1',r));await page.setViewportSize({width:900,height:450});await page.goto('http://127.0.0.1:8835/index.html');await screen('combat_intro');await page.touchscreen.tap(90+600*.5,770*.5);await screen('combat_play');await at(1.925);await page.touchscreen.tap(450,410);await at(2.2);assert.equal(await page.evaluate(()=>window.meowState.combat.resolved),1);await page.screenshot({path:path.join(root,'artifacts/wreck3d-mobile.png')});await page.setViewportSize({width:450,height:900});assert(await page.locator('#rotate').isVisible());

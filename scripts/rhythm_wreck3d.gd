@@ -74,6 +74,7 @@ func build_room(_r: int) -> void:
 	pass
 
 func start() -> void:
+	h.easy = true
 	super.start()
 	beat_guide.play()
 	cash = 0
@@ -587,6 +588,14 @@ func resume_game() -> void:
 	beat_guide.stream_paused = false
 	freeze_bodies(false)
 
+func action(id: String) -> void:
+	if id=="combat_menu":
+		if h.screen!="combat_intro":
+			show_intro()
+			build_shop()
+	elif id!="mode":
+		super.action(id)
+
 func finish(_success: bool) -> void:
 	if h.screen=="combat_result": return
 	# Settle outstanding automatic pickup rewards before showing the result.
@@ -641,9 +650,9 @@ func draw_impact() -> void:
 			pos-across*3.0
 		]),tint if i%2==0 else Color(MINT,life))
 
-func draw_beat_ring(center: Vector2,clock: float,preview := false) -> void:
+func draw_beat_ring(center: Vector2,clock: float) -> void:
 	var timing := beat_ring(clock)
-	var ring_scale := 1.0 if preview else 0.62
+	var ring_scale := 0.62
 	var radius: float = timing.radius*ring_scale
 	var inner := TARGET_RING*ring_scale
 	var feedback_tint := MINT if timing.flash else PEACH
@@ -655,38 +664,27 @@ func draw_beat_ring(center: Vector2,clock: float,preview := false) -> void:
 	else:
 		h.draw_arc(center,radius,0,TAU,72,Color("160f27"),7,true)
 		h.draw_arc(center,radius,0,TAU,72,feedback_tint,3.6,true)
-	if not preview and elapsed<INTRO:
+	if elapsed<INTRO:
 		var count := clampi(int(floor(elapsed/BEAT))+1,1,4)
 		h.center(str(count),center+Vector2(0,8),22,Color("fff2e0"))
 	else:
 		h.draw_circle(center,4.5,feedback_tint,true,-1,true)
 		var beat_position: float = (clock-INTRO-h.offset_ms/1000.0)/BEAT
 		var current_beat := int(floor(beat_position))
-		if not preview and (current_beat+1)%16==0:
+		if (current_beat+1)%16==0:
 			# A small ornament marks the optional upbeat without changing the main countdown.
 			var upbeat := absf(fposmod(beat_position,1.0)-0.5)<0.12
 			h.draw_circle(center+Vector2(11,0),4 if upbeat else 2.5,PEACH,true,-1,true)
-	if not preview and charging and now()-charge_start>=0.28:
+	if charging and now()-charge_start>=0.28:
 		h.draw_arc(center,inner-6,-PI/2,PI*1.5,48,Color(GOLD,0.75),2.5,true)
 
 func draw_intro() -> void:
 	h.draw_rect(Rect2(0,0,1440,900),Color("1c162e"))
-	h.brand()
-	h.button("sound",Rect2(1020,28,174,44),"声音关" if h.muted else "声音开",false,true)
-	h.button("combat_menu",Rect2(1212,28,180,44),"其他模式",false,true)
-	var preview := Rect2(620,172,738,324)
-	h.rounded(preview.grow(8),PANEL_DARK,21,Color("63506e"))
+	h.center("节拍拆迁王",Vector2(720,135),72,PEACH)
+	var preview := Rect2(126,183,1188,521)
 	h.draw_texture_rect(view.get_texture(),preview,false)
-	h.text("节拍拆迁王",Vector2(84,250),71,PEACH)
-	h.text("午夜百货",Vector2(90,338),60,MINT)
-	h.text("跟着鼓点，砸个痛快。",Vector2(92,410),26,h.INK)
-	h.rounded(Rect2(83,546,1275,137),PANEL_DARK,24,Color("63506e"))
-	draw_beat_ring(Vector2(164,615),h.anim,true)
-	h.text("看下方节拍圈，合圈时按空格",Vector2(260,607),30,MINT)
-	h.text("也可直接点物件。按住后，在重合时松开能重砸。",Vector2(260,647),21,h.INK)
-	h.button("combat_start",Rect2(430,731,365,72),"开砸！ →",true)
-	h.button("mode",Rect2(820,731,230,72),"宽松节拍 ⇄" if h.easy else "精准节拍 ⇄")
-	h.center("48 秒 · 120 BPM",Vector2(720,861),17,Color("c6aecf"))
+	h.rounded(preview,Color.TRANSPARENT,21,Color("63506e"))
+	h.button("combat_start",Rect2(540,730,360,76),"开始打砸",true)
 
 func draw_game() -> void:
 	h.draw_rect(Rect2(0,0,1440,900),Color("1c162e"))
@@ -713,7 +711,7 @@ func draw_game() -> void:
 func draw_rhythm_panel() -> void:
 	h.rounded(RHYTHM_PANEL,PANEL_DARK,18,Color("5b496c"))
 	draw_beat_ring(Vector2(539,RHYTHM_PANEL.get_center().y),elapsed)
-	var instruction := "两圈重合时，按一下空格"
+	var instruction := "合圈时按空格，或点场景"
 	if charging and now()-charge_start>=0.28:
 		instruction = "两圈重合时，松手重砸"
 	elif elapsed>=6:
@@ -727,6 +725,16 @@ func draw_rhythm_panel() -> void:
 	if streak>=4: detail += "  ·  %d 连拍" % streak
 	h.text(detail,Vector2(620,850),19,color)
 
+func draw_pause() -> void:
+	h.draw_rect(Rect2(0,0,1440,900),Color(0.02,0.03,0.05,0.9))
+	h.buttons.clear()
+	h.rounded(Rect2(450,255,540,390),h.PANEL,25,h.LINE)
+	h.center("暂停",Vector2(720,350),38)
+	h.button("combat_resume",Rect2(510,421,420,62),"继续打砸",true)
+	h.button("combat_start",Rect2(510,505,200,56),"重新开始")
+	h.button("combat_menu",Rect2(730,505,200,56),"返回首页")
+	h.center("ESC / Enter 继续",Vector2(720,608),17,h.MUTED)
+
 func draw_result() -> void:
 	h.draw_rect(Rect2(0,0,1440,900),Color(0.02,0.03,0.05,0.92))
 	h.buttons.clear()
@@ -737,4 +745,4 @@ func draw_result() -> void:
 	h.center("重砸 %d 次 · 揭开 %d 个暗格 · 破坏率 %d%%" % [heavy_hits,crates_revealed,int(destruction()*100)],Vector2(720,478),22)
 	h.center("接上 %d / %d 拍 · 最长 %d 连拍 · 拆迁得分 %d" % [resolved,cues.size(),max_streak,score],Vector2(720,532),19,h.MUTED)
 	h.button("combat_start",Rect2(415,621,300,67),"再砸一遍！",true)
-	h.button("combat_menu",Rect2(740,621,280,67),"其他模式")
+	h.button("combat_menu",Rect2(740,621,280,67),"返回首页")
