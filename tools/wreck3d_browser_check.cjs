@@ -92,6 +92,51 @@ async function run() {
     assert((await state()).objects[safe.id].hp < safe.hp);
     assert.equal((await state()).shopIdentity, first.shopIdentity);
 
+    await atBeat(10.14);
+    await waitFor('showType', 1);
+    const relayStart = nextBeat((await state()).rhythmTime + 0.21);
+    const relayFrom = (await state()).showTarget;
+    await atBeat(relayStart);
+    await page.keyboard.press('Space');
+    await waitFor('showStep', 1);
+    const relay = await state();
+    assert.notEqual(relay.showTarget, relayFrom);
+    assert.equal(relay.target, relay.showTarget);
+    await atBeat(relay.showDue);
+    await page.keyboard.press('Space');
+    await waitFor('specials', 1);
+    await shot('wreck3d-relay.png');
+
+    await atBeat(18.14);
+    await waitFor('showType', 2);
+    const reboundStart = nextBeat((await state()).rhythmTime + 0.21);
+    const reboundTarget = (await state()).showTarget;
+    await atBeat(reboundStart);
+    await page.keyboard.press('Space');
+    await atBeat(reboundStart + 0.25);
+    await page.keyboard.press('Space');
+    await waitFor('showStep', 1);
+    const rebound = await state();
+    assert.equal(rebound.nameTag, rebound.objects[reboundTarget].title);
+    await atBeat(rebound.showDue);
+    await page.keyboard.press('Space');
+    await waitFor('specials', 2);
+    await shot('wreck3d-rebound.png');
+
+    await atBeat(26.14);
+    await waitFor('showType', 3);
+    const drop = await state();
+    assert.equal(drop.objects[drop.showTarget].kind, 'charge_crate');
+    await page.keyboard.down('Space');
+    await waitFor('charge', 1);
+    await atBeat(Math.ceil((await state()).rhythmTime + 0.17));
+    await page.keyboard.up('Space');
+    await waitFor('specials', 3);
+    await waitFor('blastPending', 0);
+    assert((await state()).chainHits > drop.chainHits);
+    await shot('wreck3d-drop.png');
+    assert.equal((await state()).shopIdentity, first.shopIdentity);
+
     await page.keyboard.press('Escape');
     await screen('combat_pause');
     const paused = (await state()).elapsed;
@@ -156,7 +201,7 @@ async function run() {
     assert.deepEqual(external, []);
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'dist/manifest.json'), 'utf8').replace(/^\uFEFF/, ''));
     assert(manifest.web_bytes < 200000000 && manifest.zip_bytes < 200000000);
-    console.log('PASS offline entry, beat tap, offbeat double, NPC name, held strike, pause, finish, restart, touch and HTTP');
+    console.log('PASS offline entry, three base techniques, relay, rebound, drop, NPC name, pause, finish, restart, touch and HTTP');
   } finally {
     await context.close();
     if (server.listening) await new Promise(resolve => server.close(resolve));

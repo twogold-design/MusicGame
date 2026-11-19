@@ -29,11 +29,13 @@ func run() -> void:
 	wreck.press()
 	wreck.release()
 	check(wreck.demo_sounds[target.material].playing,"material sound plays on immediate hit")
+	var dummy := -1
 	for item in wreck.objects:
 		if item.kind=="dummy":
-			wreck.target_id = item.id
+			dummy = item.id
 			break
 	await create_timer(0.14).timeout
+	wreck.target_id = dummy
 	wreck.press()
 	wreck.release()
 	check(wreck.demo_sounds.slap.playing,"slap plays its own sound")
@@ -41,6 +43,7 @@ func run() -> void:
 	wreck.music.seek(stream.get_length()-0.12)
 	await create_timer(0.35).timeout
 	check(wreck.music.playing and wreck.music.get_playback_position()<3.0 and wreck.elapsed>before_seek and wreck.rhythm_time>=50.0,"audio loop preserves the continuous beat clock")
+	wreck.target_id = dummy
 	wreck.press()
 	wreck.release()
 	wreck.pause_game()
