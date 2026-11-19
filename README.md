@@ -53,9 +53,9 @@ Windows 上运行当前网页测试时，先构建，再执行以下命令。测
 
 ```powershell
 . .\tools\environment.ps1
-npm ci
+npm --prefix tools ci
 Expand-Archive -LiteralPath .\dist\MeowBeat-Web.zip -DestinationPath .\.runtime\wreck3d-package -Force
-npm run test:web
+npm --prefix tools run test:web
 ```
 
 打开Godot编辑器.cmd用于修改，重新导出网页版.cmd负责导入、导出、离线处理和打包。旧经典四轨和节拍冒险仍在其他模式。此前2D玩法源码和验证文档保留供历史参考，不代表当前规则。

@@ -2,8 +2,8 @@
   "name": "musicgame",
   "private": true,
   "scripts": {
-    "test:web": "node tools/wreck3d_browser_check.cjs",
-    "test:platform": "node tools/wreck3d_platform_check.cjs"
+    "test:web": "node wreck3d_browser_check.cjs",
+    "test:platform": "node wreck3d_platform_check.cjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"
