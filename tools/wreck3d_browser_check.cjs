@@ -45,6 +45,11 @@ async function run() {
   const waitFor = (key, value) => page.waitForFunction(
     ([key, value]) => window.meowState?.combat?.[key] === value, [key, value],
   );
+  const atBeat = time => page.waitForFunction(time => {
+    const sinceReport = Math.min(0.12, (performance.now() - window.meowState.stamp) / 1000);
+    return window.meowState.combat.rhythmTime + sinceReport >= time - 0.018;
+  }, time);
+  const nextBeat = time => Math.ceil(time * 2) / 2;
   const shot = name => page.screenshot({ path: path.join(artifactDir, name) });
 
   try {
@@ -63,16 +68,28 @@ async function run() {
 
     const dummy = first.objects.find(prop => prop.title === '插队大叔');
     assert(dummy);
-    await page.mouse.move(dummy.x, dummy.y);
-    await page.mouse.down();
+    const comboStart = nextBeat(Math.max(2.0, (await state()).rhythmTime + 0.30));
+    await atBeat(comboStart);
+    await page.mouse.click(dummy.x, dummy.y);
     await waitFor('slaps', 1);
+    assert.equal((await state()).doubleTarget, dummy.id);
+    assert.equal((await state()).nameTag, dummy.title);
+    await atBeat(comboStart + 0.25);
+    await page.keyboard.press('Space');
+    await waitFor('doubleHits', 1);
+    assert.equal((await state()).slaps, 2);
     assert.equal((await state()).nameTag, dummy.title);
     await shot('wreck3d-slap.png');
+
+    const safe = first.objects.find(prop => prop.kind === 'safe');
+    await page.mouse.move(safe.x, safe.y);
+    await page.mouse.down();
     await waitFor('charge', 1);
+    assert.equal((await state()).target, safe.id);
+    await atBeat(nextBeat((await state()).rhythmTime + 0.18));
     await page.mouse.up();
-    await waitFor('slaps', 2);
-    assert.equal((await state()).nameTag, dummy.title);
-    assert.equal((await state()).heavyHits, 1);
+    await waitFor('timedHeavies', 1);
+    assert((await state()).objects[safe.id].hp < safe.hp);
     assert.equal((await state()).shopIdentity, first.shopIdentity);
 
     await page.keyboard.press('Escape');
@@ -94,19 +111,23 @@ async function run() {
     assert.notEqual(restart.shopIdentity, first.shopIdentity);
     assert.equal(restart.slaps, 0);
     assert.equal(restart.hits, 0);
+    assert.equal(restart.onBeat, 0);
+    await page.keyboard.press('Tab');
+    await waitFor('target', (restart.target + 1) % restart.objects.length);
 
     const touchTarget = restart.objects.find(prop => prop.id === dummy.id);
     await page.touchscreen.tap(touchTarget.x, touchTarget.y);
     await waitFor('slaps', 1);
+    const touchSafe = restart.objects[safe.id];
     await page.waitForTimeout(160);
     const cdp = await context.newCDPSession(page);
     await cdp.send('Input.dispatchTouchEvent', {
-      type: 'touchStart', touchPoints: [{ x: touchTarget.x, y: touchTarget.y, id: 0 }],
+      type: 'touchStart', touchPoints: [{ x: touchSafe.x, y: touchSafe.y, id: 0 }],
     });
     await waitFor('charge', 1);
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await waitFor('slaps', 3);
-    assert.equal((await state()).heavyHits, 1);
+    await waitFor('heavyHits', 1);
+    assert((await state()).objects[safe.id].hp < safe.hp);
 
     await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
     await page.setViewportSize({ width: 900, height: 450 });
@@ -135,7 +156,7 @@ async function run() {
     assert.deepEqual(external, []);
     const manifest = JSON.parse(fs.readFileSync(path.join(root, 'dist/manifest.json'), 'utf8').replace(/^\uFEFF/, ''));
     assert(manifest.web_bytes < 200000000 && manifest.zip_bytes < 200000000);
-    console.log('PASS offline entry, free-play hits, NPC name, held slap, pause, finish, restart, touch and HTTP');
+    console.log('PASS offline entry, beat tap, offbeat double, NPC name, held strike, pause, finish, restart, touch and HTTP');
   } finally {
     await context.close();
     if (server.listening) await new Promise(resolve => server.close(resolve));

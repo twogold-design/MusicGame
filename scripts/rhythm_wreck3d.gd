@@ -1,6 +1,12 @@
 extends "res://scripts/rhythm_demolition.gd"
 
-const CHARGE_MIN := 0.30
+const CHARGE_MIN := 0.24
+const BEAT_WINDOW := 0.13
+const DOUBLE_WINDOW := 0.095
+const STREAK_GRACE := 3.0*BEAT
+const LOOP_START := 2.0
+const LOOP_END := 50.0
+const PINK := Color("ffa9d6")
 const CHARGE_FULL := 0.75
 const TAP_COOLDOWN := 0.09
 const VIEW_RECT := Rect2(48,159,1344,686)
@@ -34,6 +40,14 @@ var impact_strength := 0.0
 var slap_flash := 0.0
 var slapped_target := -1
 var locked_point := Vector3.ZERO
+var rhythm_time := 0.0
+var music_phase := 0.0
+var music_loops := 0
+var double_target := -1
+var double_at := 0.0
+var double_hits := 0
+var timed_heavies := 0
+var last_pulse := -1
 var impact_label := ""
 var impact_label_time := 0.0
 var palm: MeshInstance3D
@@ -44,11 +58,12 @@ var meshes := preload("res://scripts/wreck3d_art.gd")
 func _init(host) -> void:
 	super(host)
 
-	var bed: AudioStreamWAV = load("res://assets/audio/wreck3d/bed.wav").duplicate()
+	var bed: AudioStreamWAV = load("res://assets/audio/wreck3d/rhythm_mix.wav").duplicate()
 	bed.loop_mode = AudioStreamWAV.LOOP_FORWARD
-	bed.loop_end = int(round(bed.get_length()*bed.mix_rate))
+	bed.loop_begin = int(LOOP_START*bed.mix_rate)
+	bed.loop_end = int(LOOP_END*bed.mix_rate)
 	music.stream = bed
-	music.volume_db = -9
+	music.volume_db = -4
 	var clap := AudioStreamPlayer.new()
 	clap.stream = load("res://assets/audio/demolition/slap.wav")
 	clap.volume_db = -5
@@ -69,6 +84,17 @@ func start() -> void:
 	h.music.stop()
 	h.adventure.stop_audio()
 	elapsed = 0.0
+	rhythm_time = 0.0
+	music_phase = 0.0
+	music_loops = 0
+	double_target = -1
+	double_at = 0.0
+	double_hits = 0
+	timed_heavies = 0
+	last_pulse = -1
+	resolved = 0
+	streak = 0
+	max_streak = 0
 	last_strike = -99.0
 	cash = 0
 	slaps = 0
@@ -307,8 +333,10 @@ func press(source := "test") -> void:
 func begin_hit(source: String,id: int,point: Vector3) -> void:
 	if h.screen!="combat_play" or not active_input.is_empty() or elapsed-last_strike<TAP_COOLDOWN:
 		return
+	sync_rhythm()
+	if id!=double_target: double_target = -1
 	active_input = source
-	charging = true
+	charging = attack_style(id)=="hold"
 	charge_start = elapsed
 	last_strike = elapsed
 	locked_target = id
@@ -317,23 +345,75 @@ func begin_hit(source: String,id: int,point: Vector3) -> void:
 	if avatar.position.distance_to(approach)>2.0:
 		avatar.position = approach+Vector3(0,0,0.35)
 	face_target(point)
-	hit_target(id,point,0.0)
+	if not charging: rhythmic_hit(id,point,0.0)
 
 func release(source := "test") -> void:
 	if h.screen!="combat_play" or active_input!=source: return
 	var power := charge_level()
 	active_input = ""
-	charging = false
-	if power>0.0: hit_target(locked_target,locked_point,power)
+	if charging:
+		sync_rhythm()
+		charging = false
+		rhythmic_hit(locked_target,locked_point,power)
 	locked_target = -1
 
 func charge_level() -> float:
 	if not charging or elapsed-charge_start<CHARGE_MIN: return 0.0
-	return lerpf(0.35,1.0,clampf(inverse_lerp(CHARGE_MIN,CHARGE_FULL,elapsed-charge_start),0,1))
+	return lerpf(0.45,1.0,clampf(inverse_lerp(CHARGE_MIN,CHARGE_FULL,elapsed-charge_start),0,1))
+
+func attack_style(id: int) -> String:
+	if id<0: return "hold"
+	var item: Dictionary = objects[id]
+	if item.kind in ["arcade","vending","dummy"]: return "double"
+	if item.kind in ["wall","shelf","sofa"] or (item.kind=="safe" and item.title.is_empty()):
+		return "hold"
+	return "tap"
 
 func selected_target() -> int:
 	if charging: return locked_target
 	return valid_target(target_id)
+
+func sync_rhythm() -> void:
+	if not music.playing:
+		rhythm_time = elapsed
+	else:
+		var position := music.get_playback_position()
+		if music_phase-position>(LOOP_END-LOOP_START)*0.5: music_loops += 1
+		music_phase = position
+		var audible_time := position+music_loops*(LOOP_END-LOOP_START)
+		audible_time += AudioServer.get_time_since_last_mix()-AudioServer.get_output_latency()
+		rhythm_time = maxf(rhythm_time,audible_time-h.offset_ms/1000.0)
+	if double_target>=0 and rhythm_time>double_at+DOUBLE_WINDOW: double_target = -1
+	if streak>0 and rhythm_time-float(last_pulse)*BEAT*0.5>STREAK_GRACE: streak = 0
+
+func cue_time(id: int) -> float:
+	if id>=0 and id==double_target: return double_at
+	return (floorf((rhythm_time-0.09)/BEAT)+1.0)*BEAT
+
+func rhythmic_hit(id: int,point: Vector3,power: float) -> void:
+	var pulse_index := int(roundf(rhythm_time/BEAT))*2
+	var grade := "loose"
+	if id>=0:
+		if id==double_target and absf(rhythm_time-double_at)<=DOUBLE_WINDOW:
+			pulse_index = int(roundf(double_at/BEAT*2.0))
+			grade = "double"
+			double_target = -1
+			double_hits += 1
+		elif pulse_index!=last_pulse and absf(rhythm_time-float(pulse_index)*BEAT*0.5)<=BEAT_WINDOW:
+			grade = "beat"
+			if attack_style(id)=="double":
+				double_target = id
+				double_at = (float(pulse_index)+1.0)*BEAT*0.5
+		if grade=="loose":
+			if pulse_index!=last_pulse: streak = 0
+		else:
+			last_pulse = pulse_index
+			resolved += 1
+			streak += 1
+			max_streak = maxi(max_streak,streak)
+			if power>0.0: timed_heavies += 1
+	hit_target(id,point,power,grade)
+	if id==double_target and id>=0 and not objects[id].alive: double_target = -1
 
 func action_position(id: int,point: Vector3) -> Vector3:
 	var distance := 0.9
@@ -362,15 +442,23 @@ func update_floor_markers(selected: int) -> void:
 	var center: Vector3 = item.pos
 	center.y = 0.083
 	var half_size := Vector2(item.size.x,item.size.z)*0.5+Vector2.ONE*0.30
-	marker_material.albedo_color = tint
+	var until := cue_time(selected)-rhythm_time
+	var ready_color := tint
+	match attack_style(selected):
+		"hold": ready_color = GOLD
+		"double": ready_color = PINK
+	var flash := 1.0-clampf(absf(until)/0.09,0,1)
+	var spacing := clampf(until/0.37,0,1)*0.82
+	marker_material.albedo_color = ready_color.lerp(Color("fff8d4"),flash)
 	for index in range(FLOOR_MARKERS.size()):
 		var axis: Vector2 = FLOOR_MARKERS[index]
-		var corner := center+Vector3(axis.x*half_size.x,0,axis.y*half_size.y)
+		var corner := center+Vector3(axis.x*(half_size.x+spacing),0,axis.y*(half_size.y+spacing))
 		indicator.get_child(index).position = corner.clamp(Vector3(-12.04,0.083,-6.96),Vector3(12.26,0.083,7.31))
 	target_light.position = center+Vector3(0,item.size.y*0.55+0.8,half_size.y+0.36)
-	target_light.light_color = tint
+	target_light.light_color = ready_color.lerp(Color.WHITE,flash*0.8)
 	target_light.omni_range = 2.5+item.size.y*0.45
-	target_light.light_energy = 0.28+fill*0.78
+	target_light.light_energy = 0.26+fill*0.38+flash*1.45
+	hammer_light.emission_energy_multiplier += flash*0.85
 
 func meshes_below(node: Node) -> Array:
 	var found: Array = []
@@ -416,35 +504,41 @@ func launch_piece(part: MeshInstance3D,force: float) -> void:
 		var old: Dictionary = physical.pop_front()
 		if is_instance_valid(old.body): old.body.queue_free()
 
-func hit_target(id: int,point: Vector3,power: float) -> void:
+func hit_target(id: int,point: Vector3,power: float,grade: String) -> void:
 	var heavy := power>0.0
+	var timed := grade!="loose"
+	var two := grade=="double"
+	var reaction := maxf(power,0.65 if two else 0.0)
 	total_smashes += 1
 	if heavy: heavy_hits += 1
 	impact_target = id
 	impact_time = 0.27
-	impact_strength = 0.85+power*0.8
+	impact_strength = (1.0 if timed else 0.65)+reaction*0.80
 	punch = 1.0
-	shake = maxf(shake,3.5+power*9.0)
+	shake = maxf(shake,(5.0 if timed else 2.0)+reaction*9.0)
 	hit3d = point
 	impact_label_time = 0.0
 	slap_flash = 0.0
 	if id<0 or not objects[id].alive:
 		if heavy:
-			kick_debris(point,2.0+power*2.2,4.0+power*5.0)
+			kick_debris(point,2.0+reaction*2.2,4.0+reaction*5.0)
 			make_wave(point,true)
 			demo_sounds.thump.play()
 		return
 	var item: Dictionary = objects[id]
 	hit3d = item.pos+Vector3.UP*item.size.y*0.55
 	if item.kind=="dummy":
-		slap_character(item,power)
+		slap_character(item,reaction)
+		impact_label = "双拍！" if two else ("准拍啪！" if timed else "啪！")
 		return
 	demo_sounds[item.material].play()
-	if heavy:
+	if heavy or two:
 		demo_sounds.thump.play()
-		kick_debris(point,2.0+power*2.2,4.0+power*5.0)
+		kick_debris(point,2.0+reaction*2.2,4.0+reaction*5.0)
 		make_wave(point,true)
-	var shattered := damage_prop(id,3.4 if not heavy else lerpf(6.5,16.0,power),heavy)
+	var damage := 9.5 if two else (4.6 if timed else 2.0)
+	if heavy: damage = lerpf(8.0,20.0,power)*(1.0 if timed else 0.47)
+	var shattered := damage_prop(id,damage,heavy or two)
 	if shattered:
 		match item.kind:
 			"arcade":
@@ -457,7 +551,10 @@ func hit_target(id: int,point: Vector3,power: float) -> void:
 				if item.title.is_empty():
 					kick_debris(point,4.5,8.0)
 					announce("保险柜开了！")
-	if impact_label_time==0.0 and heavy: announce("轰！")
+	if impact_label_time==0.0:
+		if two: announce("双拍连击！")
+		elif timed: announce("准拍重砸！" if heavy else "准拍！")
+		elif heavy: announce("松手跟着亮光")
 	target_id = valid_target(target_id)
 
 func announce(label: String) -> void:
@@ -566,6 +663,7 @@ func update(delta: float) -> void:
 	view.render_target_update_mode = mode
 	if h.screen!="combat_play": return
 	elapsed += delta
+	sync_rhythm()
 	punch = maxf(0,punch-delta*6)
 	shake = maxf(0,shake-delta*30)
 	slap_flash = maxf(0,slap_flash-delta*5)
@@ -643,12 +741,24 @@ func update_character(item: Dictionary,delta: float) -> void:
 			item.visual.get_node("LeftArm").rotation.z = recoil*1.1
 			item.visual.get_node("RightArm").rotation.z = -recoil*1.1
 
+func input(event: InputEvent) -> void:
+	if h.screen=="combat_play" and event is InputEventKey and event.pressed and not event.echo and event.keycode==KEY_TAB:
+		if active_input.is_empty():
+			for step in range(1,objects.size()+1):
+				var id := (target_id+step)%objects.size()
+				if objects[id].alive:
+					target_id = id
+					double_target = -1
+					break
+		return
+	super.input(event)
+
 func pointer_down(point: Vector2,source: String) -> void:
 	for button in h.buttons:
 		if button.rect.has_point(point):
 			action(button.id)
 			return
-	if h.screen!="combat_play" or not VIEW_RECT.has_point(point) or charging: return
+	if h.screen!="combat_play" or not VIEW_RECT.has_point(point) or not active_input.is_empty(): return
 	var pixel := (point-VIEW_RECT.position)/VIEW_RECT.size*Vector2(view.size)
 	var origin := camera.project_ray_origin(pixel)
 	var direction := camera.project_ray_normal(pixel)
@@ -684,6 +794,7 @@ func freeze_bodies(frozen: bool) -> void:
 
 func pause_game() -> void:
 	if h.screen!="combat_play": return
+	double_target = -1
 	freeze_bodies(true)
 	super.pause_game()
 
@@ -713,8 +824,9 @@ func finish(_success: bool) -> void:
 	won = true
 	h.screen = "combat_result"
 	stop()
-	var key := "wreck3d_free"
-	if cash>int(h.records.get(key,0)): h.records[key] = cash
+	var key := "wreck3d_rhythm"
+	var result := resolved+double_hits+timed_heavies
+	if result>int(h.records.get(key,0)): h.records[key] = result
 	h.save_data()
 
 func named_target() -> int:
@@ -727,10 +839,12 @@ func state() -> Dictionary:
 	var props: Array = []
 	for item in objects:
 		var screen := project_to_screen(item.pos+Vector3.UP*item.size.y*0.5)
-		props.append({"id":item.id,"kind":item.kind,"alive":item.alive,"hp":item.hp,"x":screen.x,"y":screen.y,"title":item.title})
+		props.append({"id":item.id,"kind":item.kind,"alive":item.alive,"hp":item.hp,"style":attack_style(item.id),"x":screen.x,"y":screen.y,"title":item.title})
 	var named := named_target()
 	return {"mode":"wreck3d","elapsed":elapsed,"cash":cash,"looted":looted,"slaps":slaps,"heavyHits":heavy_hits,
-		"hits":total_smashes,"broken":broken,"walls":wall_breaks,"chainHits":chain_hits,"destruction":destruction(),
+		"hits":total_smashes,"onBeat":resolved,"doubleHits":double_hits,"timedHeavies":timed_heavies,
+		"rhythmTime":rhythm_time,"cueTime":cue_time(selected_target()),"doubleTarget":double_target,
+		"streak":streak,"bestStreak":max_streak,"broken":broken,"walls":wall_breaks,"chainHits":chain_hits,"destruction":destruction(),
 		"charging":charging,"charge":charge_level(),"target":target_id,"won":won,"debris":physical.size(),"revealed":crates_revealed,
 		"shopIdentity":shop_identity,"objects":props,"worldMeshes":stage.find_children("*","MeshInstance3D",true,false).size(),
 		"nameTag":objects[named].title if named>=0 else ""}
@@ -776,6 +890,8 @@ func draw_game() -> void:
 	h.text("砸碎 %d 件" % broken,Vector2(52,134),22,PEACH)
 	h.text("战利品 ¥%d" % cash,Vector2(224,134),22,GOLD)
 	h.text("巴掌 %d 下" % slaps,Vector2(434,134),22,PEACH)
+	h.text("准拍 %d" % resolved,Vector2(644,134),22,MINT)
+	if streak>1: h.text("%d 连拍" % streak,Vector2(783,134),22,GOLD)
 	draw_view()
 	draw_impact()
 	var named := named_target()
@@ -788,21 +904,40 @@ func draw_game() -> void:
 	if slap_flash>0.18:
 		var offset := Vector2(75*objects[slapped_target].slap_side,34)
 		var label := project_to_screen(hit3d)+offset
-		label = label.clamp(VIEW_RECT.position+Vector2(44,46),VIEW_RECT.end-Vector2(44,16))
-		h.center("啪！",label,38,GOLD)
+		label = label.clamp(VIEW_RECT.position+Vector2(70,46),VIEW_RECT.end-Vector2(70,16))
+		h.center(impact_label,label,32,GOLD)
 	if impact_label_time>0.0:
 		var label := project_to_screen(hit3d)+Vector2(55,-60-(0.66-impact_label_time)*25)
 		label = label.clamp(VIEW_RECT.position+Vector2(96,40),VIEW_RECT.end-Vector2(96,16))
 		h.rounded(Rect2(label-Vector2(88,28),Vector2(176,36)),PANEL_DARK,10)
 		h.center(impact_label,label,23,GOLD)
+	draw_action_hint()
+	h.center("点物件或按空格 · 脚边亮起时出手 · Tab 换目标",Vector2(720,881),18,h.MUTED)
+
+func draw_action_hint() -> void:
+	var id := selected_target()
+	if id<0 and not charging: return
+	var style := attack_style(id)
+	var point := locked_point
+	if id>=0: point = action_position(id,objects[id].pos)
+	var label := "亮时点"
+	var tint := MINT
+	if style=="hold":
+		label = "按住蓄力"
+		tint = GOLD
+		if charging: label = "亮时松手" if charge_level()>0.0 else "蓄力中"
+	elif style=="double":
+		label = "再点一下  2/2" if id==double_target else "亮时点  1/2"
+		tint = PINK
+	var anchor := project_to_screen(point)+Vector2(17,31)
+	anchor = anchor.clamp(VIEW_RECT.position+Vector2(84,34),VIEW_RECT.end-Vector2(84,13))
+	var plate := Rect2(anchor-Vector2(73,24),Vector2(146,32))
+	h.rounded(plate,PANEL_DARK,10)
+	h.center(label,anchor,18,tint)
 	if charging:
 		var fill := clampf((elapsed-charge_start)/CHARGE_FULL,0,1)
-		var anchor := project_to_screen(locked_point)+Vector2(0,34)
-		anchor = anchor.clamp(VIEW_RECT.position+Vector2(48,20),VIEW_RECT.end-Vector2(48,14))
-		h.rounded(Rect2(anchor-Vector2(42,6),Vector2(84,12)),PANEL_DARK,6)
 		if fill>0.0:
-			h.rounded(Rect2(anchor-Vector2(39,3),Vector2(78*fill,6)),MINT if fill<1.0 else GOLD,3)
-	h.center("点击目标或按空格出手 · 按住蓄力，松手重击",Vector2(720,881),18,h.MUTED)
+			h.rounded(Rect2(plate.position+Vector2(12,30),Vector2(122*fill,3)),tint,1)
 
 func draw_pause() -> void:
 	h.draw_rect(Rect2(0,0,1440,900),Color(0.02,0.03,0.05,0.9))
@@ -821,7 +956,7 @@ func draw_result() -> void:
 	h.center("打砸收工",Vector2(720,258),41,GOLD)
 	h.center("¥ %d" % cash,Vector2(720,355),64,GOLD)
 	h.center("砸碎 %d 件 · 连锁 %d 次 · 巴掌 %d 下" % [broken,chain_hits,slaps],Vector2(720,426),25,AQUA)
-	h.center("重砸 %d 次 · 揭开 %d 个暗格 · 破坏率 %d%%" % [heavy_hits,crates_revealed,int(destruction()*100)],Vector2(720,478),22)
-	h.center("本次打砸 %d 分 %02d 秒" % [int(elapsed)/60,int(elapsed)%60],Vector2(720,532),19,h.MUTED)
+	h.center("准拍 %d 下 · 最长 %d 连拍" % [resolved,max_streak],Vector2(720,478),22)
+	h.center("准拍重砸 %d 次 · 双拍连击 %d 次" % [timed_heavies,double_hits],Vector2(720,532),19,h.MUTED)
 	h.button("combat_start",Rect2(415,621,300,67),"再砸一遍！",true)
 	h.button("combat_menu",Rect2(740,621,280,67),"返回首页")

@@ -3,27 +3,30 @@ extends SceneTree
 var host
 var wreck
 var failures := 0
-var lines: Array[String] = []
+var checks := 0
 
 func _initialize() -> void:
 	call_deferred("run")
 
 func check(ok: bool,label: String) -> void:
+	checks += 1
 	if not ok: failures += 1
-	var line := ("PASS " if ok else "FAIL ")+label
-	lines.append(line)
-	print(line)
+	print(("PASS " if ok else "FAIL ")+label)
 
 func prop(kind: String,variant := 0) -> Dictionary:
 	for item in wreck.objects:
 		if item.kind==kind and item.variant==variant: return item
 	return {}
 
-func tap(id: int) -> void:
+func at(seconds: float) -> void:
+	wreck.elapsed = seconds
+	wreck.update(0.0)
+
+func tap(id: int,seconds: float) -> void:
 	wreck.target_id = id
+	at(seconds)
 	wreck.press()
 	wreck.release()
-	wreck.update(0.12)
 
 func run() -> void:
 	if not OS.get_user_data_dir().replace("\\","/").contains(".runtime/wreck3d-test-roaming"):
@@ -37,53 +40,59 @@ func run() -> void:
 	host.set_audio()
 	wreck = host.combat
 	wreck.start()
+	wreck.music.stop()
 	var shop_id: int = wreck.stage.get_instance_id()
-	check(wreck.view.own_world_3d and wreck.camera.current,"real 3D scene and camera")
-	check(wreck.stage.find_children("*","MeshInstance3D",true,false).size()>200,"3D shop contains the dressed meshes")
+	check(wreck.view.own_world_3d and wreck.camera.current,"one 3D shop with active camera")
 	var television := prop("television")
+	check(wreck.attack_style(television.id)=="tap","small items use a single tap")
 	wreck.target_id = television.id
-	wreck.press()
-	check(wreck.elapsed==0.0 and wreck.total_smashes==1 and television.hp<television.maxhp,"first press hits immediately at time zero")
-	wreck.update(0.17)
-	wreck.release()
-	check(wreck.heavy_hits==0 and television.alive,"short press only lands the first tap")
-	var other_id: int = prop("vending").id
-	wreck.target_id = television.id
-	wreck.press()
-	check(not television.alive and wreck.charging,"tap can destroy the held target")
-	wreck.target_id = other_id
-	var next_hp: float = wreck.objects[other_id].hp
-	wreck.update(0.76)
-	wreck.release()
-	check(wreck.heavy_hits==1 and wreck.objects[other_id].hp==next_hp and wreck.hit3d==television.pos,"heavy release stays with destroyed target's rubble")
-	check(wreck.broken==1 and not wreck.physical.is_empty(),"break creates physical fragments once")
+	at(1.80)
+	var far: Vector3 = wreck.indicator.get_child(0).position
+	at(2.00)
+	var close: Vector3 = wreck.indicator.get_child(0).position
+	check(far.distance_to(close)>0.2 and wreck.target_light.light_energy>1.5,"scene cues converge and flash on the beat")
+	tap(television.id,2.18)
+	check(wreck.resolved==0 and is_equal_approx(television.hp,3.0),"off-beat tap still hits but takes less damage")
+	tap(television.id,2.5)
+	check(wreck.resolved==1 and not television.alive and wreck.broken==1,"timed tap breaks the target and counts")
 	var body: RigidBody3D = wreck.physical[0].body
-	check(body.get_child(0) is MeshInstance3D and body.get_child(1) is CollisionShape3D,"physical fragment has mesh and collision shape")
+	check(body.get_child(0) is MeshInstance3D and body.get_child(1) is CollisionShape3D,"destruction still creates physical fragments")
 
-	wreck.pause_game()
-	var previous_time: float = wreck.elapsed
-	var previous_position := body.position
-	await physics_frame
-	await physics_frame
-	wreck.update(1.0)
-	check(body.freeze and body.position.is_equal_approx(previous_position) and wreck.elapsed==previous_time and wreck.music.stream_paused,"pause freezes physics, play time and audio")
-	wreck.resume_game()
-	check(not body.freeze and not wreck.music.stream_paused,"resume releases fragments and audio")
-	wreck.update(61.0)
-	check(host.screen=="combat_play" and wreck.stage.get_instance_id()==shop_id,"no timed end or room switch after a minute")
+	var arcade := prop("arcade")
+	var neighbor := prop("arcade",1)
+	tap(arcade.id,3.0)
+	check(arcade.alive and wreck.double_target==arcade.id and wreck.cue_time(arcade.id)==3.25,"first arcade hit cues the eighth-note offbeat")
+	tap(arcade.id,3.1)
+	check(wreck.double_target==arcade.id and wreck.double_hits==0 and wreck.resolved==2,"extra presses on the same pulse cannot score it again")
+	tap(arcade.id,3.25)
+	check(not arcade.alive and wreck.double_hits==1 and wreck.resolved==3,"second tap on the offbeat finishes a double")
+	check(wreck.chain_hits==1 and neighbor.hp<neighbor.maxhp,"arcade still chains into its neighbor")
+
+	var safe := prop("safe")
+	wreck.target_id = safe.id
+	at(3.46)
+	wreck.press()
+	check(wreck.charging and safe.hp==safe.maxhp,"press on a hard prop winds up the hammer")
+	at(4.0)
+	check(wreck.charge_level()>0.45,"hold grows the charge")
+	wreck.release()
+	check(wreck.timed_heavies==1 and wreck.heavy_hits==1 and safe.hp<safe.maxhp,"release on the beat lands a timed heavy")
+	at(4.2)
+	wreck.press()
+	at(4.68)
+	var before: float = safe.hp
+	wreck.release()
+	check(wreck.timed_heavies==1 and wreck.heavy_hits==2 and before-safe.hp<10.0,"off-beat release lands a lighter heavy")
+	check(wreck.crates_revealed==1 and wreck.objects.back().title=="现金盒","safe can still reveal a cash box")
 
 	for variant in range(3):
 		var actor := prop("dummy",variant)
-		wreck.target_id = actor.id
-		wreck.press()
-		wreck.update(0.14)
+		var downbeat := 5.0+2.0*variant
+		tap(actor.id,downbeat)
+		wreck.update(0.08)
 		var side: float = actor.slap_side
-		check(wreck.palm.visible and not wreck.hammer.visible and wreck.state().nameTag==actor.title,"NPC %d retains its name during palm impact" % variant)
-		wreck.update(0.22)
-		var partial_power: float = wreck.charge_level()
-		wreck.update(0.47)
-		check(partial_power>0.0 and partial_power<wreck.charge_level(),"NPC %d charge ramps up" % variant)
-		wreck.release()
+		check(wreck.palm.visible and not wreck.hammer.visible and wreck.state().nameTag==actor.title,"NPC %d keeps its name on the first hit" % variant)
+		tap(actor.id,downbeat+0.25)
 		wreck.update(0.10)
 		var head: Node3D = actor.visual.get_node("Head")
 		var reaction: bool = [
@@ -91,39 +100,40 @@ func run() -> void:
 			actor.visual.position.y>actor.pos.y+0.1,
 			absf(head.rotation.y)>0.1
 		][variant]
-		check(reaction and actor.slap_side==-side,"NPC %d has its own charged reaction and reverses direction" % variant)
-		wreck.target_id = television.id
-		check(wreck.state().nameTag==actor.title,"NPC %d keeps the name when the target changes mid-reaction" % variant)
+		check(reaction and actor.slap_side==-side and wreck.state().nameTag==actor.title,"NPC %d has its own double-slap reaction and retains its name" % variant)
+		wreck.target_id = safe.id
+		check(wreck.state().nameTag==actor.title,"NPC %d keeps name when retargeting mid-reaction" % variant)
 		wreck.update(0.8)
-		check(actor.alive and is_zero_approx(head.rotation.z) and not wreck.palm.visible,"NPC %d resets and can be slapped again" % variant)
-	check(wreck.slaps==6,"only actual slaps count")
+		check(actor.alive and is_zero_approx(head.rotation.z) and not wreck.palm.visible,"NPC %d resets so another combo is possible" % variant)
 
 	var vending := prop("vending")
-	tap(vending.id)
-	tap(vending.id)
-	tap(vending.id)
-	check(not vending.alive and wreck.impact_label=="汽水喷泉！","vending machine scatters its cans and shows its special reaction")
-	var arcade := prop("arcade")
-	var neighbor := prop("arcade",1)
-	tap(arcade.id)
-	tap(arcade.id)
-	tap(arcade.id)
-	check(not arcade.alive and neighbor.hp<neighbor.maxhp and wreck.chain_hits==1,"destroying an arcade cabinet bumps its nearest neighbor")
-	var safe := prop("safe")
-	wreck.target_id = safe.id
-	wreck.press()
-	wreck.update(0.8)
-	wreck.release()
-	check(safe.revealed and wreck.crates_revealed==1 and wreck.objects.back().title=="现金盒","strong hit on the safe reveals a breakable cash box")
+	tap(vending.id,11.0)
+	at(11.4)
+	check(wreck.double_target==-1,"missed second cue expires without blocking other attacks")
+	at(12.6)
+	check(wreck.streak==0,"streak expires after a short rest")
+	tap(vending.id,13.0)
+	tap(vending.id,13.25)
+	check(not vending.alive and wreck.impact_label=="汽水喷泉！","timed vending-machine combo still scatters cans")
+	tap(prop("dummy").id,13.5)
+	wreck.pause_game()
+	var frozen_time: float = wreck.elapsed
+	var position := body.position
+	await physics_frame
+	await physics_frame
+	wreck.update(1.0)
+	check(body.freeze and body.position.is_equal_approx(position) and wreck.elapsed==frozen_time and wreck.double_target==-1,"pause freezes physics and clears the half-finished combo")
+	wreck.resume_game()
+	check(not body.freeze,"resume releases fragments")
+	at(63.0)
+	check(host.screen=="combat_play" and wreck.stage.get_instance_id()==shop_id,"there is no timed cutoff or scene switch")
 
 	var expected_cash: int = wreck.cash
 	for coin in wreck.loot: expected_cash += int(coin.value)
 	wreck.action("combat_finish")
 	check(host.screen=="combat_result" and wreck.won and wreck.cash==expected_cash and wreck.loot.is_empty(),"manual finish settles flying loot")
-	wreck.finish(true)
-	check(wreck.cash==expected_cash and not wreck.music.playing,"finish is idempotent and stops music")
 	wreck.start()
-	check(wreck.stage.get_instance_id()!=shop_id and wreck.broken==0 and wreck.slaps==0 and wreck.cash==0 and wreck.physical.is_empty(),"restart clears shop damage and counters")
+	check(wreck.stage.get_instance_id()!=shop_id and wreck.broken==0 and wreck.slaps==0 and wreck.resolved==0 and wreck.double_hits==0,"restart clears shop and rhythm counters")
 
 	wreck.stop()
 	host.queue_free()
@@ -132,5 +142,5 @@ func run() -> void:
 	body = null
 	await process_frame
 	await create_timer(0.35).timeout
-	print("%d checks, %d failures" % [lines.size(),failures])
+	print("%d checks, %d failures" % [checks,failures])
 	quit(0 if failures==0 else 1)

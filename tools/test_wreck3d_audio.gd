@@ -22,7 +22,7 @@ func run() -> void:
 	var wreck = host.combat
 	wreck.start()
 	var stream: AudioStreamWAV = wreck.music.stream
-	check(stream.loop_mode==AudioStreamWAV.LOOP_FORWARD and stream.loop_end>stream.mix_rate*50,"52-second soundtrack is configured to loop")
+	check(stream.loop_mode==AudioStreamWAV.LOOP_FORWARD and stream.loop_begin==stream.mix_rate*2 and stream.loop_end==stream.mix_rate*50,"mixed track loops from the first playable bar")
 	var legacy_tracks: Array = wreck.response_players+wreck.melody_players
 	check(legacy_tracks.all(func(player): return not player.playing),"legacy tracks stay silent")
 	var target: Dictionary = wreck.objects[wreck.target_id]
@@ -40,7 +40,7 @@ func run() -> void:
 	var before_seek: float = wreck.elapsed
 	wreck.music.seek(stream.get_length()-0.12)
 	await create_timer(0.35).timeout
-	check(wreck.music.playing and wreck.music.get_playback_position()<1.0 and wreck.elapsed>before_seek,"looping audio does not reset the play clock")
+	check(wreck.music.playing and wreck.music.get_playback_position()<3.0 and wreck.elapsed>before_seek and wreck.rhythm_time>=50.0,"audio loop preserves the continuous beat clock")
 	wreck.press()
 	wreck.release()
 	wreck.pause_game()
